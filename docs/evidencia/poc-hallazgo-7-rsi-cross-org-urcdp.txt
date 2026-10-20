@@ -1,0 +1,51 @@
+PoC — Hallazgo #7: rol RSI sin alcance organizativo — acceso a datos personales (URCDP)
+de OTRA organización
+Usuario: rsi@rsi.local (rol RSI, vinculado a Lucía Fernández, Org A del seed demo)
+
+Causa raíz: backend/src/auth/unit-scope.guard.ts (UnitScopeGuard) solo aplica
+restricciones de alcance a los roles 'DUENO_UNIDAD' y 'LECTOR'. El rol 'RSI'
+queda exento de cualquier chequeo de organización, igual que 'ADMINISTRADOR'.
+backend/src/exportaciones/urcdp.controller.ts solo exige
+@Roles('ADMINISTRADOR', 'RSI') a nivel de controller, sin ningún validarAlcance()
+propio (a diferencia de exportaciones.controller.ts, que sí lo tiene).
+
+Setup: se creó una organización nueva ("Org C"), completamente ajena a rsi@rsi.local,
+con una base de datos personales (bases-personales) conteniendo un dato marcado
+como secreto: "DATO SECRETO Org C - Dr. Fulano, RUT 1.234.567-8".
+
+Pruebas (con rsi@rsi.local, que pertenece a la Org A):
+
+1) GET /exportaciones/organizaciones/<id Org C>/urcdp
+   → HTTP 200. Devolvió la base de datos personales completa de la Org C,
+   incluyendo el dato marcado como secreto, sin ningún filtro de alcance.
+
+2) PUT /exportaciones/organizaciones/<id Org C>/urcdp/bases-personales/<ficha>
+   → HTTP 200. Modificó el nombre y el contenido de esa ficha de datos
+   personales de una organización que no es la suya.
+
+Impacto: en un despliegue real donde el sistema alberga varias organizaciones
+(por ejemplo, varias empresas/clientes en una misma instancia), cualquier
+cuenta con rol RSI de UNA organización puede leer y modificar los registros
+de bases de datos personales y notificaciones de brecha (URCDP) de TODAS las
+demás organizaciones del sistema. Esto es particularmente grave porque:
+
+  - El módulo URCDP existe específicamente para cumplir con la normativa
+    uruguaya de protección de datos personales, que exige que cada
+    responsable de tratamiento controle el acceso a SUS datos.
+  - Los datos involucrados son potencialmente sensibles (identificación de
+    responsables, tipos de datos personales tratados, medidas de seguridad
+    declaradas, brechas de seguridad con datos de titulares afectados).
+  - El mismo patrón (ausencia de alcance para RSI) se aplica también a
+    /datos/organizaciones/:id/exportar, /exportaciones/.../mcu,
+    /exportaciones/.../bcu, /exportaciones/.../cobit y a todos los módulos
+    de /seguridad, /cumplimiento, /organizaciones (no solo URCDP) — no se
+    probó cada uno individualmente, pero el mecanismo de exención es el
+    mismo (UnitScopeGuard solo filtra DUENO_UNIDAD/LECTOR).
+
+Pregunta abierta para el grupo: si el sistema está pensado para una sola
+organización por despliegue (un solo cliente), este hallazgo no aplica en la
+práctica. Si está pensado como multi-tenant (varias organizaciones en el
+mismo backend/base de datos, como lo sugiere el modelo de datos y el seed),
+esto es un hallazgo crítico de aislamiento entre inquilinos (tenant isolation).
+
+Limpieza: se borraron la base personal y la Org C de prueba.

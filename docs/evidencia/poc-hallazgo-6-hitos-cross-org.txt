@@ -1,0 +1,40 @@
+PoC — Hallazgo #6: IDOR cross-organización en /cumplimiento/hitos/:id
+Usuarios: admin@rsi.local (ADMINISTRADOR) y dueno@rsi.local (DUENO_UNIDAD, Org A)
+
+Setup: se creó una segunda organización ("Org B - secreta", id 6b3f0736-...),
+ajena por completo a dueno@rsi.local (que pertenece a la Org A, la del seed demo).
+Se creó un plan y un hito dentro de esa Org B.
+
+Resultado de la revisión de backend/src/auth/unit-scope.guard.ts:
+`validarRegistro()` resuelve el alcance (organizacionId) comparando el path
+contra una lista fija de substrings: /trabajadores/, /activos/,
+/vulnerabilidades/, /riesgos/, /incidentes/, /politicas/, /evidencias/,
+/planes/, /procedimientos/. La ruta `/cumplimiento/hitos/:id` (PATCH, DELETE)
+NO contiene ninguno de esos substrings → el guard no resuelve ningún alcance
+y deja pasar la operación sin chequeo.
+
+Pruebas:
+
+1) POST /cumplimiento/planes/<planId de Org B>/hitos (como dueno, Org A)
+   → HTTP 403 "No tenés permisos sobre ese registro."
+   (Esta SÍ queda protegida, porque la URL contiene '/planes/' como substring,
+   aunque el recurso real sea un hito.)
+
+2) GET /cumplimiento/planes/<planId de Org B>/hitos (como lector, Org A)
+   → HTTP 403 (mismo motivo: coincide con '/planes/').
+
+3) PATCH /cumplimiento/hitos/<id del hito de Org B> (como dueno, Org A)
+   → HTTP 200 OK. Modificó el nombre del hito de una organización
+   completamente ajena a la suya.
+
+4) DELETE /cumplimiento/hitos/<id del hito de Org B> (como dueno, Org A)
+   → HTTP 200 OK. Borró el hito de la organización ajena.
+
+Esto confirma el mismo patrón ya visto en los hallazgos #1 y #2: el guard de
+alcance depende de coincidencias de substring en el path en vez de resolver
+el tipo de recurso real, y cualquier ruta que no esté en esa lista fija queda
+sin protección — en este caso específicamente las operaciones de escritura
+directas por :id sobre hitos de plan.
+
+Limpieza: se borraron la política, el plan y la organización B de prueba tras
+confirmar el hallazgo.

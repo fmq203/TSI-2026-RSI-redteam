@@ -1,0 +1,31 @@
+PoC — Hallazgo: enumeración de usuarios por timing en /auth/login
+
+Causa raíz: backend/src/auth/auth.service.ts login() hace `return` temprano
+(con el mismo mensaje de error "Correo o contraseña incorrectos") cuando el
+usuario no existe, SIN ejecutar verifyPassword(). Cuando el usuario SÍ existe,
+se ejecuta argon2.verify() (o bcrypt/scrypt), que es deliberadamente costoso
+en CPU. Esto crea un canal lateral de tiempo que distingue "usuario existe"
+de "usuario no existe", aunque el mensaje de error sea idéntico en ambos casos.
+
+Medición (misma IP, contra admin@rsi.local vs. correos aleatorios inexistentes):
+
+  Usuario EXISTENTE, password incorrecta:
+    0.548s, 0.474s, 0.490s, 0.456s   (antes de que el rate-limit cortara)
+
+  Usuario INEXISTENTE:
+    0.023s, 0.022s, 0.022s, 0.022s, 0.029s
+
+Diferencia de ~20x, trivialmente distinguible incluso con jitter de red.
+
+Mitigación parcial ya presente: nginx limita /auth/login a 5 req/min por IP
+(burst=4, nodelay). Se confirmó en vivo: tras 1 intento fallido contra un
+usuario real, el 2º intento desde la misma IP ya recibió HTTP 429 durante
+~60s. Esto hace la enumeración lenta pero NO imposible (sigue siendo viable
+de forma sostenida, o con múltiples IPs/proxies).
+
+Nota: este rate-limit también implica un riesgo de "fail shared" — usuarios
+detrás del mismo NAT/proxy corporativo podrían bloquearse entre sí.
+
+Recomendación: ejecutar siempre un hash dummy (p.ej. verificar contra un hash
+argon2 fijo) cuando el usuario no existe, para igualar el tiempo de respuesta
+en ambos casos.

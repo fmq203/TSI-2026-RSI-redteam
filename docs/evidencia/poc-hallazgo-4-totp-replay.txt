@@ -1,0 +1,19 @@
+PoC — Hallazgo adicional: replay de código TOTP
+Usuario de prueba: admin@rsi.local
+
+Causa raíz: backend/src/auth/totp.ts usa `epochTolerance: 30` (ventana ±30s además
+del período de 30s = ventanas anterior/actual/siguiente aceptadas) y no hay ningún
+registro de "último código usado" ni invalidación de un código ya consumido.
+
+Prueba:
+1. Se calculó el código TOTP válido para el instante actual: 832230
+2. POST /auth/login con ese código → HTTP 201, sesión A creada.
+3. Inmediatamente después, POST /auth/login OTRA VEZ con el MISMO código 832230
+   → HTTP 201 de nuevo, sesión B creada (independiente de la sesión A).
+
+Impacto: si un código TOTP es interceptado o visto (phishing, pantalla
+compartida, captura de red antes de HTTPS, etc.), un atacante dispone de toda
+la ventana de validez (del orden de 60-90 segundos) para reutilizarlo y crear
+su propia sesión, sin que esto invalide ni alerte la sesión legítima del
+usuario real. Un esquema TOTP correcto debería rechazar un código ya usado
+exitosamente (server-side nonce/contador de última ventana aceptada por usuario).

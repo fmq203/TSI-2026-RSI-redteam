@@ -1,0 +1,21 @@
+PoC — Hallazgo #1: control de acceso roto en /organizaciones/*
+Usuario de prueba: dueno@rsi.local (DUENO_UNIDAD, alcance = Operaciones y distribución)
+
+1) PATCH /organizaciones/unidades/<id de Tecnología> → HTTP 200 (debía ser 403)
+   Cambió el nombre de una unidad que no es la suya.
+
+2) GET /organizaciones/unidades/<id de Tecnología> → HTTP 200 (debía ser 403)
+   Pudo leer datos de una unidad ajena, incluyendo responsable y jerarquía.
+
+3) PATCH /organizaciones/<id de organización> → HTTP 200 (debía ser 403)
+   Modificó el alcanceSgsi de TODA la organización, no solo de su unidad.
+
+4) POST /organizaciones/<id org>/unidades → HTTP 201 (debía ser 403)
+   Creó una unidad organizativa nueva colgada directamente de la organización
+   (sin padre), algo que ni siquiera un DUENO_UNIDAD legítimo debería poder hacer.
+
+5) GET /organizaciones/asignaciones-raci → HTTP 200, sin filtrar por alcance
+   Devolvió asignaciones RACI de TODA la empresa (Dirección, Tecnología,
+   Administración, Operaciones), no solo de su unidad.
+
+Todos los cambios de prueba fueron revertidos/borrados tras la comprobación.

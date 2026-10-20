@@ -1,0 +1,31 @@
+PoC — Hallazgo #3: mass assignment en PATCH /auth/usuarios/:id
+Usuario de prueba: admin@rsi.local (ADMINISTRADOR) contra lector@rsi.local
+
+1) PATCH /auth/usuarios/<id lector> con body:
+     {"mfaConfirmado": true, "mfaSecret": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+   → HTTP 200. La respuesta no expone esos campos (el `select` los oculta),
+   pero una consulta directa a Postgres confirmó que SÍ quedaron escritos:
+
+     correo            | rol    | mfaConfirmado | mfaSecret
+     lector@rsi.local   | LECTOR | t             | AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+   Esto bypasea por completo el flujo de enrolamiento MFA real (setup → escanear
+   QR → confirmar con código TOTP válido). Un ADMINISTRADOR (o cualquiera que
+   abuse de esa sesión) puede plantar una semilla TOTP conocida en cualquier
+   usuario, incluyendo otro ADMINISTRADOR o RSI, sin que la víctima lo note.
+
+2) PATCH /auth/usuarios/<id lector> con body:
+     {"passwordHash": "$argon2id$v=19$m=4096,t=3,p=1$AAAA...$BBBB..."}
+   → HTTP 200. Confirmado en la base: el passwordHash quedó exactamente ese
+   string, sin pasar por hashPassword() ni ninguna validación de formato.
+   Esto permite escribir un hash arbitrario (por ejemplo, el hash de una
+   contraseña elegida por el atacante) directamente en la cuenta de otro
+   usuario, sin pasar por ningún flujo de "cambiar contraseña".
+
+Causa raíz: backend/src/main.ts no registra un ValidationPipe global con
+whitelist:true/forbidNonWhitelisted:true, y AuthService.actualizarUsuario()
+hace `tx.usuario.update({ where:{id}, data: datos })` pasando el body crudo
+sin filtrar contra ActualizarUsuarioDto (que solo declara rol/activo/trabajadorId).
+
+Limpieza: se restauró mfaConfirmado=false, mfaSecret=NULL, y se regeneró un
+passwordHash válido para la contraseña original de lector@rsi.local.

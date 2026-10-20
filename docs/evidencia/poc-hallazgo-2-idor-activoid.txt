@@ -1,0 +1,19 @@
+PoC — Hallazgo #2: IDOR por activoId en el body
+Usuario de prueba: dueno@rsi.local (DUENO_UNIDAD, alcance = Operaciones y distribución)
+
+- GET /seguridad/activos (como dueno) → correctamente filtrado, solo muestra el
+  activo de su propia unidad (Operaciones).
+
+- POST /seguridad/riesgos con activoId = <activo de Tecnología, CRÍTICO/CONFIDENCIAL>
+  → HTTP 201 Created.
+  Creó un riesgo apuntando a "Base de datos de clientes y entregas" (activo que
+  ni siquiera puede ver en el listado normal), demostrando que el filtrado de
+  listados no se corresponde con el control real de escritura.
+
+- DELETE /seguridad/riesgos/<id creado> (como dueno) → HTTP 403 Forbidden.
+  A diferencia del POST, el DELETE sí valida el alcance (porque UnitScopeGuard.
+  validarRegistro resuelve el activo real vía el :id de la ruta). Esto confirma
+  que el problema es específicamente la falta de validación en la CREACIÓN
+  (no hay :id de ruta para que el guard intercepte), no un fallo general del guard.
+
+Limpieza: el riesgo de prueba se borró con la cuenta admin.
