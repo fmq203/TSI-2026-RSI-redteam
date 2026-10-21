@@ -29,6 +29,8 @@ documentados con pasos de reproducción.
 
 ### Hallazgos confirmados
 
+Todos re-verificados contra la instancia viva el 2026-10-21.
+
 - **Críticos:** (1) control de acceso roto en `/organizaciones/*`; (2) mass assignment en
   `PATCH /auth/usuarios/:id` que permite plantar un backdoor de MFA/contraseña; (3) el rol
   `RSI` no tiene alcance organizativo y accede a datos personales (URCDP) de otras
@@ -36,8 +38,13 @@ documentados con pasos de reproducción.
 - **Alto:** IDOR por referencia directa a objetos, con 3 variantes del mismo patrón estructural
   en `UnitScopeGuard` (`activoId` en creación de riesgos/incidentes, RACI sin filtro, hitos de
   plan cross-organización).
-- **Medios:** enumeración de usuarios por timing en el login; replay de código TOTP.
+- **Medios:** enumeración de usuarios por timing en el login; replay de código TOTP;
+  enumeración cross-organización vía `GET /organizaciones`; creación de procesos sin alcance;
+  falta de segregación de funciones al aprobar/aceptar riesgos (sujeto a diseño).
 - **Descartados** (revisados, no explotables con lo analizado): CSV injection, XSS almacenado.
+- **Controles que sí funcionan:** solo-lectura del `LECTOR`, no escalada de rol, bloqueo de
+  escritura/lectura fuera de alcance cuando el id viaja en ruta/body, validación de escala de
+  riesgo. (Detalle en el informe de hallazgos.)
 
 El detalle, la severidad y la causa raíz de cada uno están en
 [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md); los pasos para

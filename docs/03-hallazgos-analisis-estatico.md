@@ -14,6 +14,12 @@ Guards activos globalmente (`app.module.ts`), en orden de ejecución: `AuthGuard
 `UnitScopeGuard`: resuelve el alcance organizativo comparando **substrings del path** y solo lo
 aplica a los roles `DUENO_UNIDAD` y `LECTOR`.
 
+> **Re-verificación 2026-10-21:** se re-ejecutaron todos los PoC contra la instancia viva y
+> todos los hallazgos siguen presentes (H1, H2/2b/2c/2d, H3, H4/H4b). Además se probaron nuevos
+> vectores: se confirmaron 2 hallazgos nuevos de autorización (secciones 9 y 10) y 1 de
+> segregación de funciones (sección 11), y se validó que varios controles **sí** funcionan
+> (ver "Controles validados"). Los pasos están en [05-reproduccion.md](05-reproduccion.md).
+
 ## 1. Control de acceso roto en `/organizaciones/*` (crítico — **CONFIRMADO**)
 
 > PoC completo: [evidencia/poc-hallazgo-1-organizaciones.txt](evidencia/poc-hallazgo-1-organizaciones.txt)
@@ -204,6 +210,56 @@ aplica a los roles `DUENO_UNIDAD` y `LECTOR`.
   vector concreto para explotarlo. No se profundizó en el parser de importación CSV
   (`seguridad/importacion-csv.ts`) más allá de la revisión estructural.
 
+## 9. Enumeración cross-organización vía `GET /organizaciones` (medio — **CONFIRMADO** en re-verificación)
+
+- `OrganizacionController.listar()` (`GET /organizaciones`) devuelve **todas** las organizaciones
+  del sistema sin filtrar por alcance. `UnitScopeGuard` no interviene porque la ruta no tiene
+  `:id` ni parámetro `organizacionId`/`unidadId`.
+- **Confirmado:** con una segunda organización de prueba en el sistema, `dueno@rsi.local`
+  (alcance Operaciones de la Org A) obtuvo el listado con las **2** organizaciones. En un
+  despliegue multi-organización, cualquier usuario de rol bajo puede enumerar todos los
+  inquilinos (nombre, `alcanceSgsi`, perfil MCU). Mismo condicionante que el hallazgo 2d.
+
+## 10. Creación de procesos sin alcance (`POST /organizaciones/procesos`) (medio — **CONFIRMADO** en re-verificación)
+
+- `OrganizacionService.crearProceso()` acepta un body **sin** `organizacionId`: en ese caso no
+  valida nada de alcance y crea un proceso "huérfano" con `organizacionId = null`.
+- `UnitScopeGuard` no lo frena: al no venir `organizacionId` en el body y no haber `:id` en la
+  ruta, el guard no encuentra nada que comparar.
+- **Confirmado:** `dueno@rsi.local` creó un proceso con `organizacionId = null` (HTTP 201).
+  Enviar `organizacionId` de otra organización sí da 403 (control correcto) — el agujero es
+  específicamente **omitir** el campo.
+- Impacto: un usuario de rol bajo puede contaminar el catálogo de procesos con registros
+  globales fuera de toda organización (integridad de datos / posible ruido en reportes).
+
+## 11. Falta de segregación de funciones al aprobar/aceptar riesgos (medio — **CONFIRMADO**, sujeto a diseño)
+
+- `SeguridadService.actualizarRiesgo()` permite setear `estado` (string libre, sin validar
+  contra un conjunto de valores) y `aceptado` (boolean) sin ninguna comprobación de rol.
+- **Confirmado:** `dueno@rsi.local` puso `estado = "APROBADA"` y `aceptado = true` sobre un
+  riesgo de su propia unidad (HTTP 200). El propio interceptor de auditoría trata la transición
+  a `APROBADA` como una acción `APPROVE`, lo que sugiere que la aprobación es un paso con
+  significado — pero no hay separación de funciones que reserve ese paso al `RSI`.
+- Dos sub-problemas: (a) cualquier dueño de unidad auto-aprueba/acepta sus propios riesgos; (b)
+  `estado` admite cualquier texto (no hay validación de enum), lo que permite estados inválidos.
+- **Sujeto a diseño:** si la intención es que el dueño gestione íntegramente los riesgos de su
+  unidad, (a) no es un fallo; (b) sigue siendo una debilidad de validación. Confirmar con el
+  grupo el flujo de aprobación esperado.
+
+## Controles validados (funcionan correctamente)
+
+Durante la re-verificación se comprobó que estos controles **sí** operan como deberían (dan la
+respuesta esperada), lo que ayuda a delimitar que el problema es específico y no general:
+
+- `ReadOnlyGuard`: un `LECTOR` no puede escribir (`PATCH`/`POST`/`DELETE`) → 403.
+- `RolesGuard`: un `DUENO_UNIDAD` no puede auto-promoverse de rol → 403.
+- `UnitScopeGuard` donde está bien cableado: `DUENO_UNIDAD` no puede crear activos en una unidad
+  ajena, ni crear/editar procesos, políticas, evidencias, procedimientos de otra organización
+  cuando el `organizacionId`/`unidadId` viaja en la ruta o el body → 403.
+- Lectura de detalle fuera de alcance (`GET /seguridad/activos/:id` de otra unidad) → 403.
+- Validación de escala de riesgo: `probabilidad`/`impacto` fuera de 1–5 son rechazados.
+- `DELETE` de riesgos/incidentes ajenos (ruta con `:id`) → 403 (solo la **creación** evade el guard).
+
 ## Severidad relativa (para el informe final)
 
 1. Control de acceso roto en organizaciones (crítico) — confirmado
@@ -212,5 +268,11 @@ aplica a los roles `DUENO_UNIDAD` y `LECTOR`.
 4. IDOR por `activoId` en riesgos/incidentes, RACI sin filtro, hitos cross-organización (alto) — confirmado (3 variantes del mismo patrón estructural)
 5. Enumeración de usuarios por timing (medio) — confirmado
 6. Replay de código TOTP (medio) — confirmado
-7. CSRF/Origin, configuración de infraestructura (bajo-medio) — no explotado activamente
-8. CSV injection / XSS almacenado — descartados, no explotables con lo revisado
+7. Enumeración cross-organización vía `GET /organizaciones` (medio, condicionado a multi-tenant) — confirmado
+8. Creación de procesos sin alcance (medio) — confirmado
+9. Falta de segregación de funciones al aprobar/aceptar riesgos (medio, sujeto a diseño) — confirmado
+10. CSRF/Origin, configuración de infraestructura (bajo-medio) — no explotado activamente
+11. CSV injection / XSS almacenado — descartados, no explotables con lo revisado
+
+> Nota: la numeración de las secciones de este documento (1, 2, 2b…, 9, 10, 11) es histórica,
+> por el orden en que se fueron encontrando; esta lista de severidad es el resumen ordenado.

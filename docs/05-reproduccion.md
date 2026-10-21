@@ -142,6 +142,10 @@ informe de hallazgos.)
 **Rol necesario:** `ADMINISTRADOR` (no es "usuario común", pero se incluye por completitud; es
 el hallazgo de mayor impacto).
 
+> Nota: las cuentas `ADMINISTRADOR` y `RSI` tienen MFA obligatorio, así que para loguearte por
+> API/consola necesitás incluir el campo `codigoMfa` con el código TOTP vigente. Desde la UI,
+> simplemente completás el segundo factor como siempre.
+
 **Pasos (consola):**
 
 ```js
@@ -199,6 +203,58 @@ hacer con dos envíos del formulario de login, o repitiendo el `POST /auth/login
 **Resultado vulnerable:** ambos logins tienen éxito (`201`) y se crean dos sesiones válidas.
 **Resultado esperado si estuviera corregido:** el segundo uso del mismo código debe
 rechazarse (registrar el último código/intervalo ya consumido por usuario).
+
+---
+
+## Hallazgo 9 — Listar todas las organizaciones del sistema
+
+**Rol necesario:** `DUENO_UNIDAD` o `LECTOR`.
+
+```js
+await api('GET', '/organizaciones');
+```
+
+**Resultado vulnerable:** devuelve **todas** las organizaciones del sistema (no solo la propia),
+con su nombre, alcance SGSI y perfil. Relevante solo si el despliegue aloja más de una
+organización.
+**Resultado esperado si estuviera corregido:** el listado debería limitarse a la organización
+del usuario.
+
+---
+
+## Hallazgo 10 — Crear un proceso "huérfano" sin organización
+
+**Rol necesario:** `DUENO_UNIDAD`.
+
+```js
+// Omitir organizacionId a propósito
+await api('POST', '/organizaciones/procesos', { nombre: 'proceso-sin-organizacion' });
+```
+
+**Resultado vulnerable:** responde `201` y crea un proceso con `organizacionId: null`, fuera de
+toda organización. (Enviar un `organizacionId` ajeno sí da `403` — el agujero es **omitirlo**.)
+**Resultado esperado si estuviera corregido:** `400`/`403`, exigiendo una organización dentro
+del alcance del usuario.
+
+> Para limpiar, borrar el proceso creado (un admin puede: `DELETE /organizaciones/procesos/<id>`).
+
+---
+
+## Hallazgo 11 — Auto-aprobar/aceptar un riesgo propio
+
+**Rol necesario:** `DUENO_UNIDAD`.
+
+```js
+// riesgoPropio = un riesgo de la unidad del usuario
+await api('PATCH', '/seguridad/riesgos/<ID_RIESGO_PROPIO>', { estado: 'APROBADA', aceptado: true });
+```
+
+**Resultado vulnerable:** responde `200`; el riesgo queda en estado `APROBADA` y `aceptado:true`
+sin pasar por ningún rol de aprobación (p. ej. `RSI`). Además el campo `estado` admite cualquier
+texto. Verificable con un `GET` posterior del mismo riesgo.
+**Resultado esperado si estuviera corregido:** la aprobación/aceptación debería requerir el rol
+correspondiente, y `estado` debería validarse contra un conjunto cerrado de valores. (Sujeto a
+confirmar cuál es el flujo de aprobación previsto por el grupo.)
 
 ---
 
