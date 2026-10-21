@@ -15,7 +15,8 @@ documentados con pasos de reproducción.
 4. [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md) — informe de hallazgos, severidad y PoC.
 5. [04-bitacora-comandos.md](04-bitacora-comandos.md) — comandos de referencia para reconstruir el entorno.
 6. [05-reproduccion.md](05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).
-7. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
+7. [06-mapeo-mitre-attack.md](06-mapeo-mitre-attack.md) — mapeo a OWASP Top 10, CWE y MITRE ATT&CK.
+8. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
 
 ## Resumen ejecutivo
 

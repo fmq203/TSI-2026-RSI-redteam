@@ -27,6 +27,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - **[docs/03-hallazgos-analisis-estatico.md](docs/03-hallazgos-analisis-estatico.md) — informe de hallazgos, con severidad y PoC.**
 - [docs/04-bitacora-comandos.md](docs/04-bitacora-comandos.md) — comandos de referencia para reproducir el entorno.
 - **[docs/05-reproduccion.md](docs/05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).**
+- [docs/06-mapeo-mitre-attack.md](docs/06-mapeo-mitre-attack.md) — mapeo de hallazgos a OWASP Top 10, CWE y MITRE ATT&CK.
 - [docs/evidencia/](docs/evidencia/) — evidencia textual de cada PoC ejecutado contra la instancia real.
 
 ## Alcance y método
