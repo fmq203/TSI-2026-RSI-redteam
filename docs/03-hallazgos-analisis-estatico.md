@@ -1,12 +1,18 @@
-# Hallazgos — revisión estática de código
+# Hallazgos
 
 Repositorio: [sistema-rsi](https://github.com/DieAndres/sistema-rsi) (backend NestJS + Prisma,
-frontend React detrás de nginx). Revisión hecha leyendo el código, sin ejecutar nada; falta
-confirmar cada uno con PoC contra la instancia desplegada (ver
-[00-resumen.md](00-resumen.md) → próximos pasos).
+frontend React detrás de nginx).
 
-Guards activos globalmente (`app.module.ts`): `AuthGuard` → `RolesGuard` → `ReadOnlyGuard` →
-`UnitScopeGuard`.
+Metodología: cada hallazgo partió de una revisión del código fuente y luego se **confirmó
+dinámicamente** con una prueba de concepto contra una instancia real desplegada en el
+laboratorio (datos sintéticos, red aislada). Los pasos para reproducir cada hallazgo como
+usuario común están en [05-reproduccion.md](05-reproduccion.md); la evidencia textual de cada
+PoC ejecutado está en [evidencia/](evidencia/).
+
+Guards activos globalmente (`app.module.ts`), en orden de ejecución: `AuthGuard` → `RolesGuard`
+→ `ReadOnlyGuard` → `UnitScopeGuard`. El origen de la mayoría de los fallos de autorización es
+`UnitScopeGuard`: resuelve el alcance organizativo comparando **substrings del path** y solo lo
+aplica a los roles `DUENO_UNIDAD` y `LECTOR`.
 
 ## 1. Control de acceso roto en `/organizaciones/*` (crítico — **CONFIRMADO**)
 
@@ -188,7 +194,7 @@ Guards activos globalmente (`app.module.ts`): `AuthGuard` → `RolesGuard` → `
   `politica-seguridad-borrador.md`, etc.) tienen algún riesgo de inyección si se abren con un
   conversor que ejecute macros/fórmulas, pero es un vector distinto y de menor probabilidad.
 
-## 2e. Revisado y descartado: XSS almacenado / renderizado inseguro
+## 8. Revisado y descartado: XSS almacenado / renderizado inseguro
 
 - Frontend React sin `dangerouslySetInnerHTML`, sin `innerHTML`, sin libs de markdown-a-HTML.
 - Las exportaciones `.md` se descargan como adjunto (`text/markdown`), no se renderizan como

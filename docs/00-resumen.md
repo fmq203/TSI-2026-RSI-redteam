@@ -4,34 +4,41 @@ Documentación del ejercicio de red team sobre el repositorio
 [sistema-rsi](https://github.com/DieAndres/sistema-rsi) (backend NestJS + Prisma/Postgres,
 frontend React detrás de nginx con TLS), correspondiente a la tarea de otro grupo.
 
-**Estado:** entorno de pruebas desplegado y funcionando. Pendiente la fase de explotación activa.
+**Estado:** ejercicio completo. Hallazgos confirmados con PoC contra una instancia real y
+documentados con pasos de reproducción.
 
 ## Índice
 
 1. [00-resumen.md](00-resumen.md) — este archivo.
 2. [01-entorno-despliegue.md](01-entorno-despliegue.md) — topología de red, VM, cómo se desplegó.
-3. [02-credenciales.md](02-credenciales.md) — usuarios y claves del entorno de pruebas.
-4. [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md) — hallazgos de revisión de código (sin ejecutar nada).
-5. [04-bitacora-comandos.md](04-bitacora-comandos.md) — comandos de referencia para reconectar y reproducir cada paso.
+3. [02-credenciales.md](02-credenciales.md) — usuarios del entorno de pruebas (credenciales redactadas).
+4. [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md) — informe de hallazgos, severidad y PoC.
+5. [04-bitacora-comandos.md](04-bitacora-comandos.md) — comandos de referencia para reconstruir el entorno.
+6. [05-reproduccion.md](05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).
+7. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
 
-## Resumen ejecutivo (hasta ahora)
+## Resumen ejecutivo
 
 - Se clonó el repo (estaba público el 2026-10-14, pasó a privado/404 después).
-- Se revisó el código de forma estática: autenticación, autorización por rol (`RolesGuard`),
-  autorización por alcance organizativo (`UnitScopeGuard`), sesiones, TOTP, nginx.
-- Se encontraron varios hallazgos, el más importante es un **control de acceso roto** en
-  `/organizaciones/*` (ver [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md)).
-- Se desplegó una instancia real en una VM de Proxmox (clon de una VM `ubuntu` existente) para
-  pasar de hallazgos teóricos a pruebas de explotación con PoC reproducibles.
-- El stack corre en Docker Compose: Postgres + backend + frontend/nginx con TLS autofirmado.
-- Se cargaron datos demo (organización ficticia "Logística del Ceibo") y se crearon usuarios
-  de los 4 roles del sistema para poder probar cruces de permisos.
+- Se revisó el código fuente (autenticación, autorización por rol `RolesGuard`, alcance
+  organizativo `UnitScopeGuard`, sesiones, TOTP, nginx) y se desplegó una instancia real en una
+  VM de Proxmox para confirmar cada hallazgo con PoC reproducibles (datos sintéticos, red
+  aislada).
+- Se cargaron datos demo (organización ficticia "Logística del Ceibo") y se crearon usuarios de
+  los 4 roles del sistema para probar cruces de permisos.
 
-## Próximos pasos
+### Hallazgos confirmados
 
-- Explotar activamente el hallazgo de `UnitScopeGuard` (IDOR / escalamiento horizontal entre
-  unidades organizativas) con usuarios `DUENO_UNIDAD` / `LECTOR` reales contra la instancia.
-- Probar mass assignment en `PATCH /auth/usuarios/:id` (falta `ValidationPipe` global).
-- Probar enumeración de usuarios por timing en login.
-- Revisar CSV injection en exportaciones/importaciones.
-- Armar el informe final con PoC, severidad y mitigaciones.
+- **Críticos:** (1) control de acceso roto en `/organizaciones/*`; (2) mass assignment en
+  `PATCH /auth/usuarios/:id` que permite plantar un backdoor de MFA/contraseña; (3) el rol
+  `RSI` no tiene alcance organizativo y accede a datos personales (URCDP) de otras
+  organizaciones (condicionado a despliegue multi-organización).
+- **Alto:** IDOR por referencia directa a objetos, con 3 variantes del mismo patrón estructural
+  en `UnitScopeGuard` (`activoId` en creación de riesgos/incidentes, RACI sin filtro, hitos de
+  plan cross-organización).
+- **Medios:** enumeración de usuarios por timing en el login; replay de código TOTP.
+- **Descartados** (revisados, no explotables con lo analizado): CSV injection, XSS almacenado.
+
+El detalle, la severidad y la causa raíz de cada uno están en
+[03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md); los pasos para
+reproducirlos, en [05-reproduccion.md](05-reproduccion.md).

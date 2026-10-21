@@ -26,6 +26,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - [docs/02-credenciales.md](docs/02-credenciales.md) — credenciales del entorno de laboratorio (red interna aislada, sin exposición real).
 - **[docs/03-hallazgos-analisis-estatico.md](docs/03-hallazgos-analisis-estatico.md) — informe de hallazgos, con severidad y PoC.**
 - [docs/04-bitacora-comandos.md](docs/04-bitacora-comandos.md) — comandos de referencia para reproducir el entorno.
+- **[docs/05-reproduccion.md](docs/05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).**
 - [docs/evidencia/](docs/evidencia/) — evidencia textual de cada PoC ejecutado contra la instancia real.
 
 ## Alcance y método
