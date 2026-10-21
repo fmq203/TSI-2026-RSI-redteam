@@ -31,6 +31,28 @@ ATT&CK porque no se demostraron.
 Ejemplo de cómo un atacante con una cuenta legítima de rol bajo (`DUENO_UNIDAD`) encadenaría los
 hallazgos — útil para que el Blue Team piense detección en cada paso:
 
+```mermaid
+flowchart TB
+  subgraph IA["TA0001 Initial Access"]
+    a1["T1087 Account Discovery<br/>H4 — enumeración por timing"]
+    a2["T1078 Valid Accounts<br/>cuenta de rol bajo (DUENO_UNIDAD)"]
+  end
+  subgraph DISC["TA0007 Discovery"]
+    b1["T1087 — enum de inquilinos<br/>H9 — GET /organizaciones"]
+    b2["Lectura fuera de alcance<br/>H1 — unidades / activos / RACI"]
+  end
+  subgraph COLL["TA0009 Collection"]
+    c1["T1213 Data from Information Repositories<br/>H2d — URCDP de otra org (rol RSI)"]
+  end
+  subgraph IMP["TA0040 Impact"]
+    d1["T1565.001 Stored Data Manipulation<br/>H1 · H2/2b · H2c · H10 · H11"]
+  end
+  subgraph PERS["TA0003 Persistence / TA0005 Defense Evasion"]
+    e1["T1098 Account Manipulation + T1556.006 MFA<br/>H3 — backdoor MFA/password (sesión admin)"]
+  end
+  a1 --> a2 --> b1 --> b2 --> c1 --> d1 --> e1
+```
+
 1. **Initial Access — T1078 Valid Accounts / T1190 Exploit Public-Facing Application.**
    El atacante parte de una cuenta válida de poco privilegio (o abusa de la app expuesta). Antes,
    con **T1087 Account Discovery** (H4, enumeración por timing) pudo descubrir correos válidos.
