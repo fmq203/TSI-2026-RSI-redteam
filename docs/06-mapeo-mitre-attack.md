@@ -84,6 +84,14 @@ flowchart TB
   resolver el recurso real (no por substring del path) y aplicar alcance también al rol `RSI`.
 - **T1213 (H2d):** lo mismo, extendido a las exportaciones y al módulo URCDP.
 
+## Capa para ATT&CK Navigator
+
+El archivo [attack-navigator-layer.json](attack-navigator-layer.json) es una capa cargable en el
+[ATT&CK Navigator](https://mitre-attack.github.io/attack-navigator/) oficial (botón *Open
+Existing Layer → Upload from local*). Pinta las técnicas de la tabla con el mismo código de
+color (verde = ajuste fuerte, amarillo = parcial, rojo = flojo) y cada una incluye en su
+comentario los hallazgos asociados.
+
 ## Referencias de técnicas
 
 - T1190 Exploit Public-Facing Application · T1078 Valid Accounts · T1087(.001) Account Discovery

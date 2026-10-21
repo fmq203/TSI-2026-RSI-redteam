@@ -1,0 +1,51 @@
+# Vagrantfile — laboratorio reproducible de sistema-rsi para red team (VirtualBox)
+#
+# Levanta una VM "víctima" Ubuntu 24.04 con el stack de sistema-rsi corriendo en Docker,
+# equivalente a la VM que en el informe se desplegó sobre Proxmox. Pensado para quien NO
+# tiene Proxmox y quiere reproducir el entorno en su propia máquina con VirtualBox.
+#
+# REQUISITOS en el host:
+#   - VirtualBox 7.x
+#   - Vagrant 2.4+
+#
+# IMPORTANTE — código de la aplicación:
+#   El código de sistema-rsi es de otro grupo y NO se incluye en este repositorio. Antes de
+#   `vagrant up`, colocá una copia del proyecto en  lab/sistema-rsi/  (debe contener
+#   docker-compose.yml, backend/, frontend/, infrastructure/). El provisioning lo copia a la
+#   VM y lo levanta. Si la carpeta no existe, el provisioning se detiene con un mensaje claro.
+#
+# Uso:
+#   cd lab
+#   # (colocar el código en lab/sistema-rsi/)
+#   vagrant up
+#   # luego abrir https://192.168.56.10:8443  (aceptar el certificado autofirmado)
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.hostname = "rsi-victim"
+
+  # Red host-only: el navegador del host llega a la VM en esta IP.
+  config.vm.network "private_network", ip: "192.168.56.10"
+  # Fallback por port-forward (por si la host-only no está disponible).
+  config.vm.network "forwarded_port", guest: 8443, host: 8443, auto_correct: true
+  config.vm.network "forwarded_port", guest: 8080, host: 8080, auto_correct: true
+
+  # El código de la app se sincroniza en /vagrant/sistema-rsi (solo lectura).
+  config.vm.synced_folder ".", "/vagrant", disabled: false
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "rsi-victim-lab"
+    vb.memory = 4096   # el build (npm ci + vite + prisma) necesita RAM
+    vb.cpus = 2
+  end
+
+  config.vm.provision "shell",
+    path: "provision.sh",
+    env: {
+      # Origen público = la IP host-only. Cambialo si usás otra IP/host.
+      "LAB_IP" => "192.168.56.10",
+      "LAB_ADMIN_EMAIL" => "admin@rsi.local",
+      # Contraseña de bootstrap del admin. Cambiala si querés.
+      "LAB_ADMIN_PASSWORD" => "CambiaEstaClave12+"
+    }
+end

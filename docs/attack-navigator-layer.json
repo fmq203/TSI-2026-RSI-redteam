@@ -1,0 +1,103 @@
+{
+  "name": "sistema-rsi red team — TSI 2026",
+  "versions": {
+    "attack": "16",
+    "navigator": "5.1.0",
+    "layer": "4.5"
+  },
+  "domain": "enterprise-attack",
+  "description": "Tecnicas MITRE ATT&CK asociadas a los hallazgos del red team sobre sistema-rsi. Color por nivel de ajuste: verde=fuerte, amarillo=parcial, rojo=flojo/conceptual. Ver docs/06-mapeo-mitre-attack.md.",
+  "sorting": 0,
+  "layout": {
+    "layout": "side",
+    "showID": true,
+    "showName": true
+  },
+  "hideDisabled": true,
+  "techniques": [
+    {
+      "techniqueID": "T1190",
+      "tactic": "initial-access",
+      "color": "#ffd54f",
+      "comment": "H1/H2/H2c — explotacion de la app para acceso/alteracion fuera de alcance (IDOR / broken access control). Ajuste: parcial.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1078",
+      "tactic": "initial-access",
+      "color": "#ffd54f",
+      "comment": "Cuenta valida de rol bajo (DUENO_UNIDAD) como punto de partida. Ajuste: parcial.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1087",
+      "tactic": "discovery",
+      "color": "#ffd54f",
+      "comment": "H9 — enumeracion de organizaciones (inquilinos) via GET /organizaciones. Ajuste: parcial.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1087.001",
+      "tactic": "discovery",
+      "color": "#66bb6a",
+      "comment": "H4 — enumeracion de usuarios por timing en /auth/login. Ajuste: fuerte.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1213",
+      "tactic": "collection",
+      "color": "#66bb6a",
+      "comment": "H2d — rol RSI lee datos personales (URCDP) de otra organizacion. Ajuste: fuerte.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1565.001",
+      "tactic": "impact",
+      "color": "#ffd54f",
+      "comment": "H1 / H2 / H2b / H2c / H10 / H11 — modificacion de datos almacenados fuera de alcance. Ajuste: parcial.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1098",
+      "tactic": "persistence",
+      "color": "#66bb6a",
+      "comment": "H3 — mass assignment en PATCH /auth/usuarios/:id para manipular cuentas (plantar MFA/hash). Ajuste: fuerte.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1556.006",
+      "tactic": "defense-evasion",
+      "color": "#66bb6a",
+      "comment": "H3 — se marca mfaConfirmado y se planta mfaSecret sin el flujo real de enrolamiento (modificar MFA). Ajuste: fuerte.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1556.006",
+      "tactic": "credential-access",
+      "color": "#66bb6a",
+      "comment": "H3 — ver defense-evasion. Ajuste: fuerte.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1111",
+      "tactic": "credential-access",
+      "color": "#e57373",
+      "comment": "H4b — replay de codigo TOTP (afin a interceptacion de MFA; no se demostro interceptacion). Ajuste: flojo.",
+      "enabled": true
+    }
+  ],
+  "gradient": {
+    "colors": ["#ffffff", "#66bb6a"],
+    "minValue": 0,
+    "maxValue": 1
+  },
+  "legendItems": [
+    { "label": "Ajuste fuerte", "color": "#66bb6a" },
+    { "label": "Ajuste parcial", "color": "#ffd54f" },
+    { "label": "Ajuste flojo / conceptual", "color": "#e57373" }
+  ],
+  "showTacticRowBackground": true,
+  "tacticRowBackground": "#205b8f",
+  "selectTechniquesAcrossTactics": true,
+  "selectSubtechniquesWithParent": false
+}

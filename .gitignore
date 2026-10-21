@@ -1,1 +1,5 @@
 .DS_Store
+# El código de sistema-rsi es de otro grupo: no se versiona en este repo.
+lab/sistema-rsi/
+.vagrant/
+*.log
