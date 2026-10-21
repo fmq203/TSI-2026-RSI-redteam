@@ -2,32 +2,49 @@
 
 ## Topología
 
-```
-┌─────────────────────────────┐
-│ Host Proxmox (proxmox01)    │
-│ <IP_HOST_PROXMOX>                │
-│                              │
-│  vmbr0 (LAN) ── <RED_LAN_LOCAL> │
-│  vmbr11 (lab aislado)       │
-│     │                        │
-│     ├── <IP_TEMPORAL_HOST>/24     │  ← IP temporal agregada al host
-│     │    (ip addr add, no persistente, se pierde al reiniciar)
-│     │                        │
-│     ├── kali (vmid 120)     │  <RED_LABORATORIO>.x (DHCP, no confirmada)
-│     │                        │
-│     ├── opnrouter (vmid 124)│  gateway/NAT de la red <RED_LABORATORIO>/24
-│     │    <IP_GATEWAY_LAB>       │  (NO tocado, solo reconocido como gateway)
-│     │                        │
-│     └── rsi-victim (vmid 118) │ <IP_VM_LABORATORIO>
-│          └── Docker:
-│               - sistema-rsi-postgres (127.0.0.1:5432)
-│               - sistema-rsi-backend  (interno, nginx hace proxy)
-│               - sistema-rsi-frontend (0.0.0.0:8080→80, 0.0.0.0:8443→443)
-└─────────────────────────────┘
+```mermaid
+flowchart TB
+  wsl["Estación de trabajo (WSL)<br/>172.31.x.x — sin ruta directa a vmbr11"]
+
+  subgraph PVE["Host Proxmox — proxmox01 (IP_HOST_PROXMOX)"]
+    vmbr0["vmbr0 (LAN) — RED_LAN_LOCAL"]
+    tmpip["IP temporal del host en vmbr11<br/>IP_TEMPORAL_HOST/24 — no persistente"]
+    subgraph LAB["vmbr11 — red de laboratorio aislada (RED_LABORATORIO/24)"]
+      kali["kali (vmid 120)<br/>atacante"]
+      opn["opnrouter (vmid 124)<br/>gateway/NAT — IP_GATEWAY_LAB (no tocado)"]
+      subgraph VM["rsi-victim (vmid 118) — IP_VM_LABORATORIO"]
+        fe["sistema-rsi-frontend<br/>nginx + React — 8080→80 / 8443→443"]
+        be["sistema-rsi-backend<br/>NestJS (interno, tras nginx)"]
+        db[("sistema-rsi-postgres<br/>127.0.0.1:5432")]
+        fe --> be --> db
+      end
+    end
+  end
+
+  wsl -->|"SSH jump host"| PVE
+  tmpip -->|"SSH a la VM / curl a la app"| VM
+  kali ---|"mismo bridge que la víctima"| VM
 ```
 
-Esta sesión de Claude Code corre en WSL (`172.31.x.x`), **sin ruta directa** a `vmbr11`.
-Todo el acceso a la red de laboratorio pasa por SSH al host Proxmox como jump host.
+Esta sesión corrió en WSL (`172.31.x.x`), **sin ruta directa** a `vmbr11`. Todo el acceso a la
+red de laboratorio pasó por SSH al host Proxmox como *jump host* (y una IP temporal agregada al
+host en `vmbr11` para poder rutear).
+
+## Arquitectura de la aplicación y cadena de autorización
+
+Flujo de una petición y los cuatro guards globales (`app.module.ts`) por los que pasa, en orden.
+La mayoría de los hallazgos de autorización están en el último, `UnitScopeGuard`.
+
+```mermaid
+flowchart LR
+  cli["Navegador / cliente"] -->|"HTTPS :8443"| nginx["nginx (frontend)<br/>TLS · rate-limit · headers de seguridad"]
+  nginx -->|"proxy /api/v1"| be["backend NestJS :3001"]
+  subgraph guards["Cadena de guards global (orden de ejecución)"]
+    direction LR
+    g1["AuthGuard<br/>sesión + Origin"] --> g2["RolesGuard<br/>@Roles"] --> g3["ReadOnlyGuard<br/>LECTOR solo lectura"] --> g4["UnitScopeGuard<br/>alcance org/unidad"]
+  end
+  be --> guards --> svc["Servicios + Prisma"] --> pg[("PostgreSQL")]
+```
 
 ## VM `rsi-victim` (vmid 118)
 
