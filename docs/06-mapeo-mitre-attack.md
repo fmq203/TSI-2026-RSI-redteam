@@ -15,7 +15,7 @@
 | 1 | Control de acceso roto en `/organizaciones/*` | A01 Broken Access Control | CWE-284 / CWE-639 | TA0001 Initial Access → T1190 Exploit Public-Facing Application; TA0040 Impact → T1565.001 Stored Data Manipulation | 🟡 |
 | 2 / 2b | IDOR por `activoId` (riesgos/incidentes) | A01 | CWE-639 IDOR / CWE-285 | T1190; T1565.001 | 🟡 |
 | 2c | IDOR cross-org en `/cumplimiento/hitos/:id` | A01 | CWE-639 | T1190; T1565.001 | 🟡 |
-| 2d | Rol `RSI` sin alcance → datos personales URCDP de otra org | A01 | CWE-284 / CWE-863 | TA0009 Collection → T1213 Data from Information Repositories; T1565.001 | 🟢 |
+| 2d | Rol `RSI` sin alcance → datos personales URCDP de otra org (incluye RT05-P04: KPIs agregados sin segmentar por org) | A01 | CWE-284 / CWE-863 / CWE-200 | TA0009 Collection → T1213 Data from Information Repositories; T1565.001 | 🟢 |
 | 3 | Mass assignment en `PATCH /auth/usuarios/:id` (backdoor MFA/password) | A08 Software and Data Integrity Failures / A04 Insecure Design | CWE-915 Mass Assignment / CWE-284 | TA0003 Persistence → T1098 Account Manipulation; TA0005 Defense Evasion → T1556.006 Modify Authentication Process: MFA | 🟢 |
 | 4 | Enumeración de usuarios por timing | A07 Identification & Auth Failures | CWE-204 Observable Response Discrepancy / CWE-203 | TA0007 Discovery → T1087.001 Account Discovery: Local Account | 🟢 |
 | 4b | Replay de código TOTP | A07 | CWE-294 Authentication Bypass by Capture-replay | TA0006 Credential Access → T1111 MFA Interception (afín); habilita T1078 Valid Accounts | 🔴 |
@@ -82,7 +82,9 @@ flowchart TB
 - **T1565.001 (H1/H2/2c/10/11):** registrar y revisar escrituras donde el `organizacionId`/
   `unidadOrganizativaId` del recurso ≠ el del actor. Raíz: reescribir `UnitScopeGuard` para
   resolver el recurso real (no por substring del path) y aplicar alcance también al rol `RSI`.
-- **T1213 (H2d):** lo mismo, extendido a las exportaciones y al módulo URCDP.
+- **T1213 (H2d):** lo mismo, extendido a las exportaciones, al módulo URCDP y al dashboard de
+  KPIs (`GET /kpis/resumen`, RT05-P04): filtrar el cálculo por las organizaciones autorizadas
+  derivadas de la identidad autenticada, no computar de forma global.
 
 ## Capa para ATT&CK Navigator
 

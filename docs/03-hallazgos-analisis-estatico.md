@@ -110,6 +110,15 @@ aplica a los roles `DUENO_UNIDAD` y `LECTOR`.
   también a `/datos/.../exportar`, `/exportaciones/.../mcu`, `/bcu`, `/cobit` y en general a
   `/seguridad`, `/cumplimiento`, `/organizaciones` para cuentas RSI — no se probó cada endpoint
   individualmente, pero el mecanismo subyacente es el mismo.
+- **Manifestación adicional confirmada (RT05-P04 — módulo KPI):** el endpoint `GET /kpis/resumen`
+  (`backend/src/kpi/kpi.service.ts`, método `resumen()`) calcula los indicadores de forma global
+  (`prisma.activo.count()` sin filtro de `organizacionId`). Una cuenta `RSI` vinculada a la Org A
+  ve en su dashboard métricas que incorporan activos de **otra** organización: al crear un activo
+  en una Org B de prueba, el resumen del RSI de A pasó de 5 a 6 activos (100 % → 83 % con
+  responsable). Es la misma causa raíz de este hallazgo (RSI sin alcance) proyectada sobre los
+  indicadores agregados. Informe y capturas:
+  [evidencia/rt05-kpis/informe-rt05.md](evidencia/rt05-kpis/informe-rt05.md) (aporte de
+  R. Rampoldi). Sujeta al mismo supuesto multi-tenant.
 - **Pregunta abierta para el grupo:** si el sistema está pensado para una sola organización por
   despliegue, este hallazgo no aplica en la práctica. Si está pensado multi-tenant (varias
   organizaciones en el mismo backend, como sugiere el modelo de datos y el propio seed), es un
