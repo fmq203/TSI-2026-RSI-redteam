@@ -18,7 +18,8 @@ documentados con pasos de reproducción.
 7. [06-mapeo-mitre-attack.md](06-mapeo-mitre-attack.md) — mapeo a OWASP Top 10, CWE y MITRE ATT&CK.
 8. [07-inventario-cvss.md](07-inventario-cvss.md) — inventario de hallazgos con CVSS 3.1.
 9. [08-bitacora-red-team.md](08-bitacora-red-team.md) — bitácora diaria Red Team.
-10. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
+10. [09-rt11-osint-gitleaks.md](09-rt11-osint-gitleaks.md) — RT-11: OSINT del repositorio.
+11. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
 
 ## Resumen ejecutivo
 

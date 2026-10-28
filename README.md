@@ -30,6 +30,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - [docs/06-mapeo-mitre-attack.md](docs/06-mapeo-mitre-attack.md) — mapeo de hallazgos a OWASP Top 10, CWE y MITRE ATT&CK (+ capa para ATT&CK Navigator).
 - [docs/07-inventario-cvss.md](docs/07-inventario-cvss.md) — inventario de hallazgos con puntajes CVSS 3.1.
 - [docs/08-bitacora-red-team.md](docs/08-bitacora-red-team.md) — bitácora diaria del equipo Red Team.
+- [docs/09-rt11-osint-gitleaks.md](docs/09-rt11-osint-gitleaks.md) — RT-11: OSINT del repositorio (gitleaks).
 - [docs/evidencia/](docs/evidencia/) — evidencia textual de cada PoC ejecutado contra la instancia real.
 - [lab/](lab/) — laboratorio reproducible con Vagrant + VirtualBox para levantar el entorno sin Proxmox.
 
