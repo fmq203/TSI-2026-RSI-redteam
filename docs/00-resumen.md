@@ -16,7 +16,9 @@ documentados con pasos de reproducción.
 5. [04-bitacora-comandos.md](04-bitacora-comandos.md) — comandos de referencia para reconstruir el entorno.
 6. [05-reproduccion.md](05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).
 7. [06-mapeo-mitre-attack.md](06-mapeo-mitre-attack.md) — mapeo a OWASP Top 10, CWE y MITRE ATT&CK.
-8. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
+8. [07-inventario-cvss.md](07-inventario-cvss.md) — inventario de hallazgos con CVSS 3.1.
+9. [08-bitacora-red-team.md](08-bitacora-red-team.md) — bitácora diaria Red Team.
+10. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
 
 ## Resumen ejecutivo
 

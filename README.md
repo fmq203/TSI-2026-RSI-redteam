@@ -28,6 +28,8 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - [docs/04-bitacora-comandos.md](docs/04-bitacora-comandos.md) — comandos de referencia para reproducir el entorno.
 - **[docs/05-reproduccion.md](docs/05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).**
 - [docs/06-mapeo-mitre-attack.md](docs/06-mapeo-mitre-attack.md) — mapeo de hallazgos a OWASP Top 10, CWE y MITRE ATT&CK (+ capa para ATT&CK Navigator).
+- [docs/07-inventario-cvss.md](docs/07-inventario-cvss.md) — inventario de hallazgos con puntajes CVSS 3.1.
+- [docs/08-bitacora-red-team.md](docs/08-bitacora-red-team.md) — bitácora diaria del equipo Red Team.
 - [docs/evidencia/](docs/evidencia/) — evidencia textual de cada PoC ejecutado contra la instancia real.
 - [lab/](lab/) — laboratorio reproducible con Vagrant + VirtualBox para levantar el entorno sin Proxmox.
 
