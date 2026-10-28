@@ -84,6 +84,20 @@
       "color": "#e57373",
       "comment": "H4b — replay de codigo TOTP (afin a interceptacion de MFA; no se demostro interceptacion). Ajuste: flojo.",
       "enabled": true
+    },
+    {
+      "techniqueID": "T1566",
+      "tactic": "initial-access",
+      "color": "#ffd54f",
+      "comment": "RT03-MD — Markdown injection en exportadores (links/imagenes sin escapar): el documento exportado como vector de phishing secundario. Ajuste: parcial.",
+      "enabled": true
+    },
+    {
+      "techniqueID": "T1499",
+      "tactic": "impact",
+      "color": "#ffd54f",
+      "comment": "RT12-DoS — exportadores sin paginacion, amplificacion de latencia medida con concurrencia acotada (10 req). Ajuste: parcial (confirmado estructuralmente, no se demostro caida real del servicio).",
+      "enabled": true
     }
   ],
   "gradient": {

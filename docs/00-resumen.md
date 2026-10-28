@@ -19,7 +19,8 @@ documentados con pasos de reproducción.
 8. [07-inventario-cvss.md](07-inventario-cvss.md) — inventario de hallazgos con CVSS 3.1.
 9. [08-bitacora-red-team.md](08-bitacora-red-team.md) — bitácora diaria Red Team.
 10. [09-rt11-osint-gitleaks.md](09-rt11-osint-gitleaks.md) — RT-11: OSINT del repositorio.
-11. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
+11. [10-rt03-rt07-rt12.md](10-rt03-rt07-rt12.md) — RT-03/07/12: exportadores, logs, DoS acotado.
+12. [evidencia/](evidencia/) — salida textual de cada PoC ejecutado.
 
 ## Resumen ejecutivo
 

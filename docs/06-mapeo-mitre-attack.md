@@ -22,6 +22,8 @@
 | 9 | Enumeración cross-org (`GET /organizaciones`) | A01 | CWE-285 / CWE-200 Information Exposure | TA0007 Discovery → T1087 / T1526-like enumeración de inquilinos | 🟡 |
 | 10 | Creación de procesos sin alcance | A01 / A04 Insecure Design | CWE-284 | TA0040 Impact → T1565.001 Stored Data Manipulation | 🔴 |
 | 11 | Falta de segregación de funciones al aprobar riesgos | A04 Insecure Design / A01 | CWE-285 / CWE-862 Missing Authorization | TA0040 Impact → T1565.001 | 🔴 |
+| RT03-MD | Markdown injection en exportadores (links/imágenes sin escapar) | A03 Injection | CWE-79-like (Markdown/HTML injection) / CWE-116 Improper Encoding or Escaping of Output | TA0009 Collection → T1123/T1005-like exfiltración pasiva vía beacon; TA0001 Initial Access → T1566 Phishing (vector secundario, el documento exportado como señuelo) | 🟡 |
+| RT12-DoS | Exportadores sin paginación → amplificación de latencia por concurrencia | A04 Insecure Design | CWE-400 Uncontrolled Resource Consumption / CWE-770 Missing Limit on Allocation | TA0040 Impact → T1499 Endpoint Denial of Service (sub-técnica T1499.004 Application or System Exploitation, por volumen/concurrencia no explotación de bug) | 🟡 |
 
 Hallazgos descartados (CSV injection → CWE-1236; XSS almacenado → A03/CWE-79) no se mapean a
 ATT&CK porque no se demostraron.

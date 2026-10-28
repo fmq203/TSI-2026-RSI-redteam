@@ -31,6 +31,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - [docs/07-inventario-cvss.md](docs/07-inventario-cvss.md) — inventario de hallazgos con puntajes CVSS 3.1.
 - [docs/08-bitacora-red-team.md](docs/08-bitacora-red-team.md) — bitácora diaria del equipo Red Team.
 - [docs/09-rt11-osint-gitleaks.md](docs/09-rt11-osint-gitleaks.md) — RT-11: OSINT del repositorio (gitleaks).
+- [docs/10-rt03-rt07-rt12.md](docs/10-rt03-rt07-rt12.md) — RT-03/RT-07/RT-12: inyección en exportadores, log injection, DoS acotado.
 - [docs/evidencia/](docs/evidencia/) — evidencia textual de cada PoC ejecutado contra la instancia real.
 - [lab/](lab/) — laboratorio reproducible con Vagrant + VirtualBox para levantar el entorno sin Proxmox.
 

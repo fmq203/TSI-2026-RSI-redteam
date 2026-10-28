@@ -21,6 +21,8 @@ cualitativa sigue la escala estándar (0.1–3.9 Baja · 4.0–6.9 Media · 7.0�
 | H11 | Falta de segregación de funciones: `DUENO_UNIDAD` auto-aprueba/acepta sus riesgos | `AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:L/A:N` | **4.3** | Media |
 | H4b | Replay de código TOTP dentro de la ventana de validez | `AV:N/AC:H/PR:L/UI:N/S:U/C:L/I:L/A:N` | **4.2** | Media |
 | H4 | Enumeración de usuarios por timing en `/auth/login` | `AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:N/A:N` | **3.7** | Baja |
+| RT03-MD | Markdown injection en exportadores (links/imágenes sin escapar) | `AV:N/AC:L/PR:L/UI:N/S:U/C:L/I:L/A:N` | **5.4** | Media |
+| RT12-DoS | Exportadores sin paginación → amplificación de latencia por concurrencia (estructural, extrapolado) | `AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:L` | **3.5** | Baja |
 
 ## Notas por hallazgo
 
@@ -36,14 +38,23 @@ cualitativa sigue la escala estándar (0.1–3.9 Baja · 4.0–6.9 Media · 7.0�
 - **H2/H2b (5.4):** la respuesta del `POST` además devuelve los datos del activo ajeno (`C:L`).
 - **H4b (4.2) y H4 (3.7):** `AC:H` porque requieren, respectivamente, interceptar un código válido
   y realizar mediciones estadísticas; el rate-limit de nginx mitiga parcialmente H4.
+- **RT03-MD (5.4):** sintaxis Markdown de links/imágenes sin escapar en los exportadores; habilita
+  exfiltración pasiva (beacon vía imagen remota) y phishing dentro de documentos oficiales. `C:L`
+  porque filtra solo metadata de quien abre el documento (no datos del sistema), `I:L` porque
+  altera el contenido visual/confianza del documento.
+- **RT12-DoS (3.5):** `AC:L` porque no requiere condiciones especiales, `A:L` porque el impacto
+  observado (≈10× latencia con 10 requests concurrentes) es una degradación parcial, no una caída
+  confirmada — el puntaje refleja que es una extrapolación razonada y no una demostración completa
+  (ver limitación en [10-rt03-rt07-rt12.md](10-rt03-rt07-rt12.md)).
 
 ## Resumen por severidad
 
 - **Alta (7.0–8.9):** H1 (8.1), H2d (8.1), H2c (7.1).
-- **Media (4.0–6.9):** H3 (6.0), H2/H2b (5.4), H9 (4.3), H10 (4.3), H11 (4.3), H4b (4.2).
-- **Baja (0.1–3.9):** H4 (3.7).
+- **Media (4.0–6.9):** H3 (6.0), RT03-MD (5.4), H2/H2b (5.4), H9 (4.3), H10 (4.3), H11 (4.3), H4b (4.2).
+- **Baja (0.1–3.9):** H4 (3.7), RT12-DoS (3.5).
 
 La descripción técnica, causa raíz y PoC de cada hallazgo están en
-[03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md); los pasos de
-reproducción en [05-reproduccion.md](05-reproduccion.md); el mapeo normativo en
+[03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md) y
+[10-rt03-rt07-rt12.md](10-rt03-rt07-rt12.md); los pasos de reproducción en
+[05-reproduccion.md](05-reproduccion.md); el mapeo normativo en
 [06-mapeo-mitre-attack.md](06-mapeo-mitre-attack.md).

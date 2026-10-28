@@ -59,14 +59,40 @@
 |---|---|---|---|---|---|
 | mañana | FMQ | Documentación | Integración de RT05 como manifestación de H2d; actualización de matriz OWASP/CWE/MITRE | — | Commit de integración |
 | mañana | FMQ | Documentación | Inventario de hallazgos con CVSS 3.1 y esta bitácora | — | `07-inventario-cvss.md`, `08-bitacora-red-team.md` |
+| 13:00 | FMQ | Explotación | **RT-11** — OSINT del repositorio: `gitleaks detect` sobre el historial completo + verificación manual (claves PEM/SSH, AWS keys, JWT, `.env` trackeados) | gitleaks, grep | Sin secretos reales filtrados. 5 hallazgos de gitleaks, los 5 falsos positivos (secreto RFC 6238 de prueba, ejemplos de doc, texto que menciona "secretos"); autocrítica sobre password de ejemplo en nuestro propio `lab/Vagrantfile` |
+| 13:15 | FMQ | Explotación | **RT-03** — revisión de SQLi (`$queryRaw`/`$executeRaw`: 0 resultados) y SSTI/RCE (sin motor de templates en exportadores) | lectura de código | Descartados: sin superficie |
+| 13:25 | FMQ | Explotación | **RT-03** — PoC de Markdown injection: política con `descripcion` conteniendo `![x](url)`/`[link](url)`, exportada vía `GET .../politica-seguridad` | curl | **Confirmado**: payload sin escapar en el documento exportado. Dato de prueba eliminado tras verificar |
+| 13:35 | FMQ | Explotación | **RT-07** — CRLF injection (`%0d%0a`) en query string contra `GET /seguridad/riesgos?estado=...`, inspección de `docker logs` del frontend (nginx) | curl, `cat -A` sobre logs crudos | Descartado: nginx no decodifica antes de loguear `$request` (queda en una sola línea); sin sink de logging de aplicación en el backend |
+| 13:45 | FMQ | Explotación | **RT-12** — línea base de timing del export `inventario-activos` (5 activos) | curl timing | ~0.08 s |
+| 13:50 | FMQ | Explotación | **RT-12** — alta de 150 activos sintéticos en unidad temporal, re-medición del export (155 activos) | curl, API loop | ~0.13 s; sin explosión cuadrática a esta escala |
+| 14:00 | FMQ | Explotación | **RT-12** — 10 exports concurrentes al mismo endpoint (sin sostener la carga) | curl en paralelo | Latencia por request ~10× (0.1 s → ~1 s); confirma contención de recursos sin necesidad de forzar una caída real. **Acotado a propósito**: no se escaló más para no degradar el laboratorio compartido |
+| 14:05 | FMQ | Post-explotación | Limpieza de datos de prueba (150 activos RT12, unidad temporal, política RT-03) | curl/API | Inventario vuelto a 5 activos (estado original) |
+| 14:15 | FMQ | Documentación | `docs/10-rt03-rt07-rt12.md`, CVSS de RT03-MD y RT12-DoS, actualización de matriz MITRE | — | Commit |
 
 ---
 
 ## Pendientes declarados (para la entrega final 09/11)
 
-- Objetivos de la letra aún no cubiertos: **RT-03** (inyección/SSTI en exportadores), **RT-07**
-  (log injection), **RT-11** (OSINT/gitleaks sobre el repo), **RT-12** (DoS del exportador).
 - **RT-04** (XSS persistente) revisado estáticamente; falta fuzzing activo.
 - Entregables de forma: plantilla oficial `informe-red-team.md`, presentación ejecutiva (10 min),
   registro de incidentes en plantilla `04`/`10`.
-- **Limpieza de laboratorio** pendiente (supervisada): datos de prueba de RT05 y de los PoC.
+- **Limpieza de laboratorio** pendiente (supervisada): datos de prueba de RT05 (Org B/unidad/
+  activo de Renzo) y la unidad accidental "Tecnología RT05" en la Org A. Lo generado hoy (RT12,
+  RT03-MD) ya se limpió en el momento.
+
+## Objetivos de la letra (7.2) — estado al cierre de esta bitácora
+
+| ID | Objetivo | Estado |
+|---|---|---|
+| RT-01 | Romper autenticación | Parcial (H3, H4, H4b) |
+| RT-02 | Abuso de rol/permisos, IDOR | Cubierto (núcleo del informe) |
+| RT-03 | Inyecciones / SSTI en exportadores | Cerrado hoy — SQLi/SSTI descartados, Markdown injection confirmado |
+| RT-04 | XSS persistente | Revisado estáticamente, sin fuzzing activo |
+| RT-05 | Manipular KPIs/dashboard | Cubierto (RT05 + H11) |
+| RT-06 | Tampering de exportaciones | Parcial |
+| RT-07 | Log injection | Cerrado hoy — descartado, sin sink explotable |
+| RT-08 | Secuestro de sesión | Cubierto — control verificado como correcto |
+| RT-09 | Abuso de API de exportación para enumerar | Parcial (H2d) |
+| RT-10 | Exposición URCDP por fail-open | Cubierto (H2d) |
+| RT-11 | OSINT del repositorio | Cerrado hoy — sin secretos filtrados |
+| RT-12 | DoS acotado del exportador | Cerrado hoy — confirmado estructuralmente, acotado a propósito |
