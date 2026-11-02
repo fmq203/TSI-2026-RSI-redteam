@@ -69,11 +69,20 @@
 | 14:05 | FMQ | Post-explotación | Limpieza de datos de prueba (150 activos RT12, unidad temporal, política RT-03) | curl/API | Inventario vuelto a 5 activos (estado original) |
 | 14:15 | FMQ | Documentación | `docs/10-rt03-rt07-rt12.md`, CVSS de RT03-MD y RT12-DoS, actualización de matriz MITRE | — | Commit |
 
+## 2026-11-02 — RT-04 (XSS persistente, fuzzing activo)
+
+| Hora (UTC) | Firma | Fase | Acción | Herramienta | Resultado |
+|---|---|---|---|---|---|
+| 16:50 | FMQ | Recon | Revisión estática integral del frontend: búsqueda de sinks de HTML crudo | grep sobre `frontend/src` | **0** ocurrencias de `dangerouslySetInnerHTML`/`innerHTML`/`insertAdjacentHTML`/`document.write`/`eval`/`new Function`. Todos los campos de usuario se renderizan por interpolación JSX (escapada). CSP `script-src 'self'` sin `unsafe-inline` |
+| 16:55 | FMQ | Explotación | **RT-04** — inyección de batería XSS (`<script>`, `<img onerror>`, `<svg onload>`, `"><iframe src=javascript:>`) en `titulo`/`descripcion` de política y `nombre` de procedimiento, como `DUENO_UNIDAD` (sin MFA) | curl (desde Kali) | Login 201. **El backend almacena el payload VERBATIM** (GET de vuelta sin escapar): no sanitiza del lado servidor |
+| 17:05 | FMQ | Explotación | **RT-04** — render en navegador: abrir Cumplimiento→Políticas con la tarjeta `[RT04]` y revisar Console + Inspector | Firefox, DevTools | **Descartado**: ningún `alert()` se dispara; el payload figura como **nodo de texto** dentro del `<h3>`/`<p>` (no hay `<script>`/`<img>` reales en el DOM); sin ejecución de JS inyectado en consola |
+| 17:10 | FMQ | Post-explotación | Limpieza de la política y el procedimiento `[RT04]` | curl DELETE | Org restaurada (sin registros `[RT04]`) |
+| 17:15 | FMQ | Documentación | PoC + 2 capturas en `docs/evidencia/rt04-xss/`; actualización de tabla de objetivos y resumen | — | Commit |
+
 ---
 
 ## Pendientes declarados (para la entrega final 09/11)
 
-- **RT-04** (XSS persistente) revisado estáticamente; falta fuzzing activo.
 - Entregables de forma: plantilla oficial `informe-red-team.md`, presentación ejecutiva (10 min),
   registro de incidentes en plantilla `04`/`10`.
 - **Limpieza de laboratorio** pendiente (supervisada): datos de prueba de RT05 (Org B/unidad/
@@ -87,7 +96,7 @@
 | RT-01 | Romper autenticación | Parcial (H3, H4, H4b) |
 | RT-02 | Abuso de rol/permisos, IDOR | Cubierto (núcleo del informe) |
 | RT-03 | Inyecciones / SSTI en exportadores | Cerrado hoy — SQLi/SSTI descartados, Markdown injection confirmado |
-| RT-04 | XSS persistente | Revisado estáticamente, sin fuzzing activo |
+| RT-04 | XSS persistente | Cerrado — descartado con fuzzing activo (payload almacenado pero inerte: React escapa + CSP) |
 | RT-05 | Manipular KPIs/dashboard | Cubierto (RT05 + H11) |
 | RT-06 | Tampering de exportaciones | Parcial |
 | RT-07 | Log injection | Cerrado hoy — descartado, sin sink explotable |

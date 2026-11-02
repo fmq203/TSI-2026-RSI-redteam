@@ -17,7 +17,8 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - **1 hallazgo alto** (con 3 variantes del mismo patrón estructural): IDOR por referencia directa
   a objetos (`activoId`, hitos de plan) que evade el control de alcance organizativo.
 - **2 hallazgos medios**: enumeración de usuarios por timing en el login, y replay de código TOTP.
-- 2 vectores revisados y descartados (CSV injection, XSS almacenado) con su justificación.
+- 2 vectores descartados: CSV injection y **XSS persistente (RT-04)** — este último probado con
+  fuzzing activo (payload almacenado sin sanitizar pero renderizado inerte por React + CSP).
 
 ## Índice
 

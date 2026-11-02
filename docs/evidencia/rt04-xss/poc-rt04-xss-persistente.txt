@@ -1,0 +1,73 @@
+RT-04 — XSS persistente en campos de políticas/procedimientos
+=============================================================
+Fecha: 2026-11-02
+Objetivo (letra 7.2): "XSS persistente en campos de políticas/procedimientos (afecta al RSI)."
+Resultado: DESCARTADO (no explotable). Confirmado con fuzzing activo contra la instancia viva,
+con doble capa de defensa (escape de React + CSP).
+
+Modelo de amenaza
+-----------------
+Un usuario de bajo privilegio (DUENO_UNIDAD, sin MFA) planta payloads XSS en los campos de
+texto libre (titulo/descripcion de política, nombre/descripcion de procedimiento). Esos campos
+los visualiza luego el RSI/Administrador en la UI. Si la app no los neutraliza, el script del
+atacante correría en la sesión del RSI (robo de cookie, acciones en su nombre).
+
+Paso 1 — Inyección vía API (desde Kali, red del laboratorio)
+------------------------------------------------------------
+Login DUENO_UNIDAD -> HTTP 201 (sin MFA).
+POST /api/v1/cumplimiento/politicas/<org>  con:
+  titulo      = [RT04] <script>alert('xss')</script> <img src=x onerror=alert(document.domain)> <svg onload=alert(1)> "><iframe src=javascript:alert(1)>
+  descripcion = (mismo payload)
+POST /api/v1/cumplimiento/procedimientos/<org> con nombre = [RT04] <img src=x onerror=alert('proc')>
+
+Lectura de vuelta (GET /cumplimiento/politicas/<id>):
+  "titulo":      "[RT04] [RT04] <script>alert('xss')</script> <img src=x onerror=alert(document.domain)> <svg onload=alert(1)> \"><iframe src=javascript:alert(1)>"
+  "descripcion": "[RT04] <script>alert('xss')</script> <img src=x onerror=alert(document.domain)> <svg onload=alert(1)> \"><iframe src=javascript:alert(1)>"
+
+=> El backend ALMACENA el payload VERBATIM: no escapa ni sanitiza en el servidor.
+   La neutralización (si la hay) tiene que ocurrir en el cliente.
+
+Paso 2 — Render en el navegador (Firefox, sesión autenticada)
+-------------------------------------------------------------
+Página Cumplimiento -> Políticas, tarjeta "[RT04]...":
+  - NO se dispara ningún alert(). El <script>/<img onerror>/<svg onload> NO se ejecutan.
+  - La consola NO muestra ejecución de JS inyectado (sólo un 401 /auth/me previo al login y un
+    403 Forbidden al pedir unidades de otra organización — control de acceso correcto).
+  - En el Inspector, el payload completo aparece como un UNICO NODO DE TEXTO dentro del <h3>
+    (título) y del <p> (descripción); los "<" figuran escapados. NO existen elementos
+    <script>/<img>/<svg>/<iframe> reales en el DOM.
+
+Causa de la no-explotabilidad (defensa en profundidad)
+------------------------------------------------------
+1) React escapa por defecto todo texto interpolado en JSX. Todos los campos de usuario se
+   renderizan como {valor} (p.ej. <h3>{p.titulo}</h3>, <p>{p.descripcion}</p>,
+   celdas de la vista previa de exportación <td>{celda}</td>). No se convierten a HTML.
+2) El frontend NO usa ningún sink de HTML crudo: 0 ocurrencias de dangerouslySetInnerHTML,
+   innerHTML, insertAdjacentHTML, document.write, eval ni new Function en todo src/.
+   Tampoco hay renderizador Markdown->HTML en la UI.
+3) CSP estricta servida por nginx (security-headers.conf):
+     Content-Security-Policy: default-src 'self'; script-src 'self'; object-src 'none';
+     base-uri 'none'; frame-ancestors 'none'; ...
+   Sin 'unsafe-inline' ni 'unsafe-eval' en script-src: aunque existiera un sink, el navegador
+   bloquearía la ejecución de <script> inline y de manejadores on*=. object-src 'none' y
+   frame-ancestors 'none' cierran vectores de plugin/embedding.
+
+Conclusión
+----------
+No hay XSS persistente. El objetivo RT-04 se cierra como DESCARTADO, con dos capas independientes
+(escape de React + CSP) que harían falta romper simultáneamente. Observación menor (higiene,
+no vulnerabilidad): el backend guarda HTML sin sanitizar; si en el futuro se agregara un
+renderizador de Markdown/HTML o un export a un formato que interprete HTML, el payload almacenado
+pasaría a ser peligroso (ver también RT03-MD, Markdown injection en exportadores). Recomendación:
+validar/sanear longitud y caracteres en el servidor como defensa adicional.
+
+Limpieza
+--------
+DELETE /cumplimiento/procedimientos/c2fd399b-2b56-4a63-9635-5056411e3e49
+DELETE /cumplimiento/politicas/ba76b749-9f02-4297-860d-2f73a4f7ad0b
+Estado de la org restaurado (sin registros [RT04]).
+
+Evidencia
+---------
+rt04-politica-payload-como-texto.png  — la tarjeta muestra el payload como texto, sin ejecución.
+rt04-inspector-nodo-de-texto.png      — el Inspector muestra el payload como nodo de texto en <h3>.

@@ -46,7 +46,11 @@ Todos re-verificados contra la instancia viva el 2026-10-21.
 - **Medios:** enumeración de usuarios por timing en el login; replay de código TOTP;
   enumeración cross-organización vía `GET /organizaciones`; creación de procesos sin alcance;
   falta de segregación de funciones al aprobar/aceptar riesgos (sujeto a diseño).
-- **Descartados** (revisados, no explotables con lo analizado): CSV injection, XSS almacenado.
+- **Descartados** (no explotables): CSV injection; **XSS persistente (RT-04)** — probado con
+  fuzzing activo contra la instancia viva: el backend almacena el payload sin sanitizar, pero el
+  frontend lo renderiza inerte (React escapa todo texto + CSP `script-src 'self'`), confirmado en
+  navegador (ningún `alert()`, payload como nodo de texto en el DOM). Ver
+  [evidencia/rt04-xss/](evidencia/rt04-xss/).
 - **Controles que sí funcionan:** solo-lectura del `LECTOR`, no escalada de rol, bloqueo de
   escritura/lectura fuera de alcance cuando el id viaja en ruta/body, validación de escala de
   riesgo. (Detalle en el informe de hallazgos.)
