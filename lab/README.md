@@ -69,3 +69,21 @@ vagrant ssh -c 'cd /opt/sistema-rsi && sudo docker compose ps'
 - El provisioning genera credenciales propias (clave TOTP, password de Postgres) con
   `openssl rand`; no se reutilizan las del laboratorio original.
 - Es un entorno de pruebas con datos sintéticos. No lo expongas a redes no confiables.
+
+## Equivalencia Proxmox ↔ Vagrant
+
+Todos los hallazgos del informe son **a nivel aplicación**, así que se reproducen igual en este
+laboratorio (mismo `docker-compose`, misma migración y mismo `seed-demo`). Solo cambia la "cáscara"
+de infraestructura:
+
+| En el informe (Proxmox) | En este lab (Vagrant) | Cómo ajustar el PoC |
+|---|---|---|
+| Target `10.10.10.87:8443` | `192.168.56.10:8443` | Reemplazar la IP en los comandos de [../docs/05-reproduccion.md](../docs/05-reproduccion.md) y [../docs/04-bitacora-comandos.md](../docs/04-bitacora-comandos.md). |
+| Kali en el bridge `vmbr11` (misma L2) | Red host-only | Correr los `curl` desde el **host**, o sumar una 2ª VM Kali en el mismo `vboxnet`. |
+| Credenciales de [../docs/02-credenciales.md](../docs/02-credenciales.md) | **Propias** del provisioning | El admin usa `LAB_ADMIN_PASSWORD`; la clave TOTP y el password de Postgres se generan con `openssl rand`. El TOTP del admin se configura en el primer login. |
+| Usuarios de rol bajo ya creados | Hay que crearlos | Crear `DUENO_UNIDAD`/`RSI`/`LECTOR` desde el panel admin, vinculados a los trabajadores del seed. |
+| `qm` / SSH-jump / cloud-init | `vagrant up` / `vagrant ssh` / `vagrant halt` | Mecánica operativa, no es un PoC — no aplica. |
+
+**Qué se reproduce idéntico:** autorización/IDOR (H1, H2/2b/2c/2d, H9, H10, H11), mass assignment
+(H3), timing/replay TOTP (H4/H4b), Markdown injection (RT03-MD), XSS fuzzing (RT-04), log injection
+(RT-07), DoS acotado (RT-12) y el OSINT/gitleaks (RT-11, que corre sobre el código).
