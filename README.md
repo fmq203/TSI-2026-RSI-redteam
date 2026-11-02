@@ -25,6 +25,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - [docs/00-resumen.md](docs/00-resumen.md) — resumen ejecutivo del ejercicio.
 - [docs/01-entorno-despliegue.md](docs/01-entorno-despliegue.md) — cómo se desplegó el entorno de pruebas.
 - [docs/02-credenciales.md](docs/02-credenciales.md) — credenciales del entorno de laboratorio (red interna aislada, sin exposición real).
+- **[docs/informe-red-team.md](docs/informe-red-team.md) — informe de evaluación técnica (plantilla oficial de la cátedra, entregable #1).**
 - **[docs/03-hallazgos-analisis-estatico.md](docs/03-hallazgos-analisis-estatico.md) — informe de hallazgos, con severidad y PoC.**
 - [docs/04-bitacora-comandos.md](docs/04-bitacora-comandos.md) — comandos de referencia para reproducir el entorno.
 - **[docs/05-reproduccion.md](docs/05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).**
