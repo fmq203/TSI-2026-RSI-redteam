@@ -10,6 +10,7 @@ documentados con pasos de reproducción.
 ## Índice
 
 0. [informe-red-team.md](informe-red-team.md) — **informe final en la plantilla oficial de la cátedra** (entregable #1).
+0b. [informe-cumplimiento-contradicciones.md](informe-cumplimiento-contradicciones.md) — **informe de cumplimiento: contradicciones al Blue Team** (entregable #5).
 1. [00-resumen.md](00-resumen.md) — este archivo.
 2. [01-entorno-despliegue.md](01-entorno-despliegue.md) — topología de red, VM, cómo se desplegó.
 3. [02-credenciales.md](02-credenciales.md) — usuarios del entorno de pruebas (credenciales redactadas).
