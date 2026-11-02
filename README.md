@@ -29,6 +29,7 @@ de concepto reales contra esa instancia (no solo lectura de código).
 - **[docs/informe-cumplimiento-contradicciones.md](docs/informe-cumplimiento-contradicciones.md) — informe de cumplimiento: afirmaciones del Blue Team contradichas (entregable #5).**
 - [docs/isaca-10-vulnerabilidades-redteam.md](docs/isaca-10-vulnerabilidades-redteam.md) — registro de vulnerabilidades en plantilla ISACA `10` (entregable #4).
 - [docs/isaca-04-incidentes-redteam.md](docs/isaca-04-incidentes-redteam.md) — registro de incidentes simulados en plantilla ISACA `04` (entregable #4).
+- [docs/presentacion-ejecutiva.pdf](docs/presentacion-ejecutiva.pdf) — presentación ejecutiva de 10 min (entregable #6), PDF renderizable en GitHub.
 - **[docs/03-hallazgos-analisis-estatico.md](docs/03-hallazgos-analisis-estatico.md) — informe de hallazgos, con severidad y PoC.**
 - [docs/04-bitacora-comandos.md](docs/04-bitacora-comandos.md) — comandos de referencia para reproducir el entorno.
 - **[docs/05-reproduccion.md](docs/05-reproduccion.md) — cómo reproducir cada hallazgo como usuario común (navegador).**
